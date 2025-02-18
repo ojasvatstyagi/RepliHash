@@ -7,7 +7,10 @@ repositories {
 
 dependencies {
 	compile group: 'com.typesafe.akka', name: 'akka-actor_2.11', version: '2.4.16'
+	compile group: 'com.typesafe.akka', name: 'akka-remote_2.11', version: '2.4.16'
 	compile group: 'commons-validator', name: 'commons-validator', version: '1.4.0'
+
+	compileOnly group: 'com.intellij', name: 'annotations', version: '12.0'
 
 	testCompile group: 'com.github.stefanbirkner', name: 'system-rules', version: '1.16.0'
 }

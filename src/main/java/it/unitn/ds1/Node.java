@@ -1,5 +1,9 @@
 package it.unitn.ds1;
 
+import akka.actor.ActorSystem;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+import it.unitn.ds1.actors.NodeActor;
 import org.apache.commons.validator.routines.InetAddressValidator;
 
 /**
@@ -8,6 +12,24 @@ import org.apache.commons.validator.routines.InetAddressValidator;
  * @author Davide Pedranz
  */
 public class Node {
+
+	/**
+	 * Unique name for the Akka application.
+	 * Used by Akka to contact the other Nodes of the system.
+	 */
+	private static final String SYSTEM_NAME = "dsproject";
+
+	/**
+	 * Unique name for the Akka Node Actor.
+	 * Used by Akka to contact the other Nodes of the system.
+	 */
+	private static final String ACTOR_NAME = "node";
+
+	/**
+	 * Key used in the configuration file to pass the ID for the Node to launch.
+	 */
+	private static final String CONFIG_NODE_ID = "node.id";
+
 
 	/**
 	 * Error message to print when the Node is invoked with the wrong parameters.
@@ -34,6 +56,7 @@ public class Node {
 		System.exit(2);
 	}
 
+
 	/**
 	 * Validate IP and port.
 	 *
@@ -50,6 +73,7 @@ public class Node {
 			return false;
 		}
 	}
+
 
 	/**
 	 * Entry point.
@@ -134,6 +158,16 @@ public class Node {
 	 */
 	private static void bootstrap() {
 		System.out.println("Bootstrap");
+
+		// load configuration
+		final Config config = ConfigFactory.load();
+
+		// initialize Akka
+		final ActorSystem system = ActorSystem.create(SYSTEM_NAME, config);
+
+		// create a NodeActor of type "bootstrap" and add it to the system
+		final int id = config.getInt(CONFIG_NODE_ID);
+		system.actorOf(NodeActor.bootstrap(id), ACTOR_NAME);
 	}
 
 	/**
@@ -144,6 +178,17 @@ public class Node {
 	 */
 	private static void join(String ip, String port) {
 		System.out.println("Join - " + ip + ":" + port);
+
+		// load configuration
+		final Config config = ConfigFactory.load();
+
+		// initialize Akka
+		final ActorSystem system = ActorSystem.create(SYSTEM_NAME, config);
+
+		// create a NodeActor of type "join" and add it to the system
+		final int id = config.getInt(CONFIG_NODE_ID);
+		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s", SYSTEM_NAME, ip, port, ACTOR_NAME);
+		system.actorOf(NodeActor.join(id, remote), ACTOR_NAME);
 	}
 
 	/**
@@ -154,6 +199,7 @@ public class Node {
 	 */
 	private static void recover(String ip, String port) {
 		System.out.println("Recover - " + ip + ":" + port);
+		throw new RuntimeException("Not yet implemented");
 	}
 
 }
