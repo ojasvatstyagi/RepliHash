@@ -5,6 +5,7 @@ import akka.actor.UntypedActor;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
 import akka.japi.Creator;
+import it.unitn.ds1.messages.JoinMessage;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -51,7 +52,7 @@ public class NodeActor extends UntypedActor {
 		this.remote = remote;
 		this.logger = Logging.getLogger(getContext().system(), this);
 
-		logger.debug("NodeActor [" + id + "] -> constructor: id={}, init={}, remote={}", id, initialState, remote);
+		logger.info("Node [" + id + "] -> constructor: id={}, init={}, remote={}", id, initialState, remote);
 	}
 
 	/**
@@ -90,17 +91,20 @@ public class NodeActor extends UntypedActor {
 	 */
 	@Override
 	public void preStart() {
-		logger.debug("NodeActor [" + id + "] -> preStart()");
 
 		// depending on the initialization, decide what to do
 		switch (initialState) {
 
 			// nothing needed in this case
 			case BOOTSTRAP:
+				logger.info("Node [" + id + "] -> preStart(), do nothing");
 				break;
 
-			// TODO
+			// send a message to the node provided from the command line
+			// to ask to join the system
 			case JOIN:
+				logger.info("Node [" + id + "] -> preStart(), asking to join to {}", remote);
+				getContext().actorSelection(remote).tell(new JoinMessage(id), getSelf());
 				break;
 
 			// TODO
@@ -111,6 +115,20 @@ public class NodeActor extends UntypedActor {
 
 	@Override
 	public void onReceive(Object message) {
+		if (message instanceof JoinMessage) {
+			onJoin((JoinMessage) message);
+		} else {
+			unhandled(message);
+		}
+	}
+
+	/**
+	 * A new Node is requiring to join the system.
+	 *
+	 * @param message Join message.
+	 */
+	private void onJoin(@NotNull JoinMessage message) {
+		logger.info("Node [{}] asks to join the network", message.getId());
 	}
 
 	/**

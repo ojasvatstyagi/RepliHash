@@ -177,7 +177,7 @@ public class Node {
 	 * @param port Port of a remote Node in the system.
 	 */
 	private static void join(String ip, String port) {
-		System.out.println("Join - " + ip + ":" + port);
+		System.out.println("JoinMessage - " + ip + ":" + port);
 
 		// load configuration
 		final Config config = ConfigFactory.load();
