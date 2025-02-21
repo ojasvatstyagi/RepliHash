@@ -7,17 +7,17 @@ import java.io.Serializable;
  *
  * @author Davide Pedranz
  */
-public class JoinMessage implements Serializable {
+public class JoinRequestMessage implements Serializable {
 
 	// message fields
 	private final int id;
 
 	/**
-	 * JoinMessage Message: require to join the system.
+	 * JoinRequestMessage Message: require to join the system.
 	 *
 	 * @param id ID of the Node trying to join the network.
 	 */
-	public JoinMessage(int id) {
+	public JoinRequestMessage(int id) {
 		this.id = id;
 	}
 
