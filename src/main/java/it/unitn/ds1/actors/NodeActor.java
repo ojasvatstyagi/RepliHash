@@ -1,13 +1,18 @@
 package it.unitn.ds1.actors;
 
+import akka.actor.ActorRef;
 import akka.actor.Props;
 import akka.actor.UntypedActor;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
 import akka.japi.Creator;
 import it.unitn.ds1.messages.JoinRequestMessage;
+import it.unitn.ds1.messages.NodesListMessage;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Akka actor that implements the Node's behaviour.
@@ -38,6 +43,14 @@ public class NodeActor extends UntypedActor {
 	 */
 	private final LoggingAdapter logger;
 
+
+	/**
+	 * Internal variable used to keep track of the other nodes in the system.
+	 * NB: this map contains also myself!
+	 */
+	private final Map<Integer, ActorRef> nodes;
+
+
 	/**
 	 * Create a new Node Actor.
 	 *
@@ -51,6 +64,10 @@ public class NodeActor extends UntypedActor {
 		this.initialState = initialState;
 		this.remote = remote;
 		this.logger = Logging.getLogger(getContext().system(), this);
+		this.nodes = new HashMap<>();
+
+		// add myself to the map of nodes
+		this.nodes.put(id, getSelf());
 
 		logger.info("Node [" + id + "] -> constructor: id={}, init={}, remote={}", id, initialState, remote);
 	}
@@ -117,6 +134,8 @@ public class NodeActor extends UntypedActor {
 	public void onReceive(Object message) {
 		if (message instanceof JoinRequestMessage) {
 			onJoin((JoinRequestMessage) message);
+		} else if (message instanceof NodesListMessage) {
+			onNodesList((NodesListMessage) message);
 		} else {
 			unhandled(message);
 		}
@@ -129,6 +148,24 @@ public class NodeActor extends UntypedActor {
 	 */
 	private void onJoin(@NotNull JoinRequestMessage message) {
 		logger.info("Node [{}] asks to join the network", message.getId());
+
+		// send back the list of nodes
+		getSender().tell(new NodesListMessage(nodes), getSelf());
+	}
+
+	/**
+	 * Somebody sent me the list of Nodes in the system.
+	 *
+	 * @param message List of Nodes Message,
+	 */
+	private void onNodesList(NodesListMessage message) {
+		// TODO: should I ignore this if never requested? [maybe]
+		// TODO: should I remove nodes not in this list? [I guess not]
+
+		logger.info("Somebody sent the list of nodes: {}", message.getNodes());
+
+		// update my list of nodes
+		this.nodes.putAll(message.getNodes());
 	}
 
 	/**

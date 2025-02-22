@@ -13,7 +13,7 @@ public class JoinRequestMessage implements Serializable {
 	private final int id;
 
 	/**
-	 * JoinRequestMessage Message: require to join the system.
+	 * Join Request Message: require to join the system.
 	 *
 	 * @param id ID of the Node trying to join the network.
 	 */
