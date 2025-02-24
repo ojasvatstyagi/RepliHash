@@ -14,22 +14,9 @@ import org.apache.commons.validator.routines.InetAddressValidator;
 public class Node {
 
 	/**
-	 * Unique name for the Akka application.
-	 * Used by Akka to contact the other Nodes of the system.
-	 */
-	private static final String SYSTEM_NAME = "dsproject";
-
-	/**
-	 * Unique name for the Akka Node Actor.
-	 * Used by Akka to contact the other Nodes of the system.
-	 */
-	private static final String ACTOR_NAME = "node";
-
-	/**
 	 * Key used in the configuration file to pass the ID for the Node to launch.
 	 */
 	private static final String CONFIG_NODE_ID = "node.id";
-
 
 	/**
 	 * Error message to print when the Node is invoked with the wrong parameters.
@@ -41,8 +28,8 @@ public class Node {
 		"\n" +
 		"Commands:\n" +
 		"   bootstrap  Instruct the Node to bootstrap a new system (does NOT require ip and port)\n" +
-		"   join       Instruct the Node to join the system (for the first time)\n" +
-		"   recover    Instruct the Node to do recovery and join again the system after a crash\n" +
+		"   leave       Instruct the Node to leave the system (for the first time)\n" +
+		"   recover    Instruct the Node to do recovery and leave again the system after a crash\n" +
 		"\n" +
 		"Arguments:\n" +
 		"   ip         The IP of a remote Node already in the system\n" +
@@ -104,7 +91,7 @@ public class Node {
 				break;
 			}
 
-			// launch this node and ask it to join an existing system
+			// launch this node and ask it to leave an existing system
 			case "join": {
 
 				// validate number of arguments
@@ -112,7 +99,7 @@ public class Node {
 					printHelpAndExit();
 				}
 
-				// extract ip and port of the node to contact to join the system
+				// extract ip and port of the node to contact to leave the system
 				final String ip = args[1];
 				final String port = args[2];
 				if (!validateIPAndPort(ip, port)) {
@@ -125,7 +112,7 @@ public class Node {
 				break;
 			}
 
-			// launch this node and ask it to perform recovery and join again the system
+			// launch this node and ask it to perform recovery and leave again the system
 			case "recover": {
 
 				// validate number of arguments
@@ -133,7 +120,7 @@ public class Node {
 					printHelpAndExit();
 				}
 
-				// extract ip and port of the node to contact to join the system
+				// extract ip and port of the node to contact to leave the system
 				final String ip = args[1];
 				final String port = args[2];
 				if (!validateIPAndPort(ip, port)) {
@@ -163,15 +150,15 @@ public class Node {
 		final Config config = ConfigFactory.load();
 
 		// initialize Akka
-		final ActorSystem system = ActorSystem.create(SYSTEM_NAME, config);
+		final ActorSystem system = ActorSystem.create(SystemConstants.SYSTEM_NAME, config);
 
 		// create a NodeActor of type "bootstrap" and add it to the system
 		final int id = config.getInt(CONFIG_NODE_ID);
-		system.actorOf(NodeActor.bootstrap(id), ACTOR_NAME);
+		system.actorOf(NodeActor.bootstrap(id), SystemConstants.ACTOR_NAME);
 	}
 
 	/**
-	 * Launch a new Node to join an existing system for the first time.
+	 * Launch a new Node to leave an existing system for the first time.
 	 *
 	 * @param ip   IP of a remote Node in the system.
 	 * @param port Port of a remote Node in the system.
@@ -183,16 +170,17 @@ public class Node {
 		final Config config = ConfigFactory.load();
 
 		// initialize Akka
-		final ActorSystem system = ActorSystem.create(SYSTEM_NAME, config);
+		final ActorSystem system = ActorSystem.create(SystemConstants.SYSTEM_NAME, config);
 
-		// create a NodeActor of type "join" and add it to the system
+		// create a NodeActor of type "leave" and add it to the system
 		final int id = config.getInt(CONFIG_NODE_ID);
-		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s", SYSTEM_NAME, ip, port, ACTOR_NAME);
-		system.actorOf(NodeActor.join(id, remote), ACTOR_NAME);
+		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
+			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
+		system.actorOf(NodeActor.join(id, remote), SystemConstants.ACTOR_NAME);
 	}
 
 	/**
-	 * Launch a crashed Node to recover and join back the system.
+	 * Launch a crashed Node to recover and leave back the system.
 	 *
 	 * @param ip   IP of a remote Node in the system.
 	 * @param port Port of a remote Node in the system.

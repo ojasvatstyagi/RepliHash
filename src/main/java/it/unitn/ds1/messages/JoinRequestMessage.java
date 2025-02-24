@@ -3,7 +3,7 @@ package it.unitn.ds1.messages;
 import java.io.Serializable;
 
 /**
- * Message used to require to join the system.
+ * Message used to require to leave the system.
  *
  * @author Davide Pedranz
  */
@@ -13,16 +13,16 @@ public class JoinRequestMessage implements Serializable {
 	private final int id;
 
 	/**
-	 * Join Request Message: require to join the system.
+	 * Join Request Message: require to leave the system.
 	 *
-	 * @param id ID of the Node trying to join the network.
+	 * @param id ID of the Node trying to leave the network.
 	 */
 	public JoinRequestMessage(int id) {
 		this.id = id;
 	}
 
 	/**
-	 * @return The ID of the Node trying to join.
+	 * @return The ID of the Node trying to leave.
 	 */
 	public int getId() {
 		return id;

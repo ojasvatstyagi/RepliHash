@@ -8,7 +8,7 @@ import java.util.Map;
 
 /**
  * Message used to transmit the list of Nodes in the system.
- * Used during the join phase.
+ * Used during the leave phase.
  *
  * @author Davide Pedranz
  */

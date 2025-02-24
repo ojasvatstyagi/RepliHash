@@ -10,6 +10,7 @@ import it.unitn.ds1.messages.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,7 +36,7 @@ public class NodeActor extends UntypedActor {
 
 	/**
 	 * Akka remote path to contact another Node.
-	 * This is used to make the node join an existing system.
+	 * This is used to make the node leave an existing system.
 	 */
 	private final String remote;
 
@@ -64,7 +65,7 @@ public class NodeActor extends UntypedActor {
 	 *
 	 * @param id           Unique identifier to assign to this node.
 	 * @param initialState Initial state of the Node. This determines the behaviour of the Node when started.
-	 * @param remote       Remote address of another actor to contact to join the system.
+	 * @param remote       Remote address of another actor to contact to leave the system.
 	 *                     This parameter is not required for the bootstrap node.
 	 */
 	private NodeActor(int id, @NotNull InitialState initialState, @Nullable String remote) {
@@ -101,7 +102,7 @@ public class NodeActor extends UntypedActor {
 	}
 
 	/**
-	 * Create Props for a new Node that is willing to join the system.
+	 * Create Props for a new Node that is willing to leave the system.
 	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
 	 */
 	public static Props join(final int id, String remote) {
@@ -133,7 +134,7 @@ public class NodeActor extends UntypedActor {
 	/**
 	 * This method is called after the constructor, when the actor is ready.
 	 * We use this to do the initial actions required by the actor, depending
-	 * on the initial state. For instance, if the Node needs to join the
+	 * on the initial state. For instance, if the Node needs to leave the
 	 * system, we send a message to a remote Node already in the system.
 	 */
 	@Override
@@ -149,7 +150,7 @@ public class NodeActor extends UntypedActor {
 				break;
 
 			// send a message to the node provided from the command line
-			// to ask to join the system
+			// to ask to leave the system
 			case JOIN:
 				this.state = State.JOINING_WAITING_NODES;
 				logger.info("Node [" + id + "] -> preStart(), asking to join to {}, state={}", remote, this.state);
@@ -170,20 +171,19 @@ public class NodeActor extends UntypedActor {
 			onDataRequest((DataRequestMessage) message);
 		} else if (message instanceof NodesListMessage) {
 			onNodesList((NodesListMessage) message);
+		} else if (message instanceof LeaveRequestMessage) {
+			onLeaveRequest();
 		} else if (message instanceof DataMessage) {
 			onData((DataMessage) message);
 		} else if (message instanceof JoinMessage) {
 			onJoin((JoinMessage) message);
+		} else if (message instanceof LeaveMessage) {
+			onLeave((LeaveMessage) message);
 		} else {
 			unhandled(message);
 		}
 	}
 
-	/**
-	 * A new Node is requiring to join the system.
-	 *
-	 * @param message Join message.
-	 */
 	private void onJoinRequest(@NotNull JoinRequestMessage message) {
 
 		// TODO: check that I am ready to reply
@@ -194,11 +194,6 @@ public class NodeActor extends UntypedActor {
 		getSender().tell(new NodesListMessage(nodes), getSelf());
 	}
 
-	/**
-	 * A Node is requiring the data I am responsible for.
-	 *
-	 * @param message Data Request message.
-	 */
 	@SuppressWarnings("UnusedParameters")
 	private void onDataRequest(@NotNull DataRequestMessage message) {
 
@@ -212,11 +207,23 @@ public class NodeActor extends UntypedActor {
 		getSender().tell(new DataMessage(), getSelf());
 	}
 
-	/**
-	 * Somebody sent me the list of Nodes in the system.
-	 *
-	 * @param message List of Nodes Message,
-	 */
+	private void onLeaveRequest() {
+		logger.info("Leave request");
+
+		// TODO: do stuff, exit protocol
+
+		// inform all nodes that I am leaving
+		multicast(new LeaveMessage(id));
+
+		// eventually, acknowledge the client
+		getSender().tell(new LeaveAcknowledgmentMessage(), getSelf());
+
+		// TODO: cancel the storage?
+
+		// shutdown
+		getContext().system().terminate();
+	}
+
 	private void onNodesList(@NotNull NodesListMessage message) {
 		assert this.state == State.JOINING_WAITING_NODES;
 
@@ -236,11 +243,6 @@ public class NodeActor extends UntypedActor {
 		this.state = State.JOINING_WAITING_DATA;
 	}
 
-	/**
-	 * Somebody sent me the list of data it is responsible for.
-	 *
-	 * @param message Data Message.
-	 */
 	@SuppressWarnings("UnusedParameters")
 	private void onData(@NotNull DataMessage message) {
 		assert this.state == State.JOINING_WAITING_DATA;
@@ -250,10 +252,7 @@ public class NodeActor extends UntypedActor {
 		logger.info("Somebody sent the me the data it is responsible for. Sending Join msg...");
 
 		// announce everybody that I am part of the system
-		this.nodes.entrySet()
-			.stream()
-			.filter(entry -> entry.getKey() != id)
-			.forEach(entry -> entry.getValue().tell(new JoinMessage(id), getSelf()));
+		multicast(new JoinMessage(id));
 
 		// now I am ready to serve requests
 		this.state = State.READY;
@@ -261,21 +260,36 @@ public class NodeActor extends UntypedActor {
 		logger.info("Now I am part of the system. My nodes are: {}", nodes.keySet());
 	}
 
-	/**
-	 * A new Node has joined the system.
-	 *
-	 * @param message Join Message.
-	 */
 	private void onJoin(JoinMessage message) {
-		logger.info("Node [{}] is joining", message.getId());
 
 		// add the Node to my list
 		this.nodes.put(message.getId(), getSender());
 
-		// TODO: remove
-		logger.info("Update my set of nodes: {}", nodes.keySet());
+		// log
+		logger.info("Node [{}] is joining. Nodes = {}", message.getId(), nodes.keySet());
 
 		// TODO: remove the keys I am not responsible for
+	}
+
+	private void onLeave(LeaveMessage message) {
+
+		// remove it from my nodes
+		this.nodes.remove(message.getId());
+
+		// log
+		logger.info("Node [{}] is leaving. Nodes = {}", message.getId(), nodes.keySet());
+	}
+
+	/**
+	 * Send the given message to all the other nodes.
+	 *
+	 * @param message Message to send in multicast.
+	 */
+	private void multicast(Serializable message) {
+		this.nodes.entrySet()
+			.stream()
+			.filter(entry -> entry.getKey() != id)
+			.forEach(entry -> entry.getValue().tell(message, getSelf()));
 	}
 
 	/**

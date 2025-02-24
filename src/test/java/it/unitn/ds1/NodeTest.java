@@ -23,13 +23,13 @@ public class NodeTest {
 	@Test
 	public void joinWrongParametersNumber() {
 		exit.expectSystemExitWithStatus(2);
-		Node.main(new String[]{"join", "xyz"});
+		Node.main(new String[]{"leave", "xyz"});
 	}
 
 	@Test
 	public void joinWrongParameters() {
 		exit.expectSystemExitWithStatus(2);
-		Node.main(new String[]{"join", "xyz", "124"});
+		Node.main(new String[]{"leave", "xyz", "124"});
 	}
 
 	@Test
