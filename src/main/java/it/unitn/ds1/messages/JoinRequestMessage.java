@@ -4,8 +4,6 @@ import java.io.Serializable;
 
 /**
  * Message used to require to leave the system.
- *
- * @author Davide Pedranz
  */
 public class JoinRequestMessage implements Serializable {
 

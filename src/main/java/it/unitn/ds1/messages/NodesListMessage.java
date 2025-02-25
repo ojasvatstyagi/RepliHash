@@ -9,8 +9,6 @@ import java.util.Map;
 /**
  * Message used to transmit the list of Nodes in the system.
  * Used during the leave phase.
- *
- * @author Davide Pedranz
  */
 public class NodesListMessage implements Serializable {
 

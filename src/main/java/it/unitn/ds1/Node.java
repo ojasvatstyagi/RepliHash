@@ -8,8 +8,6 @@ import org.apache.commons.validator.routines.InetAddressValidator;
 
 /**
  * Entry point to launch a new node.
- *
- * @author Davide Pedranz
  */
 public class Node {
 
@@ -144,7 +142,6 @@ public class Node {
 	 * Launch a new Node which will bootstrap the system.
 	 */
 	private static void bootstrap() {
-		System.out.println("Bootstrap");
 
 		// load configuration
 		final Config config = ConfigFactory.load();
@@ -164,7 +161,6 @@ public class Node {
 	 * @param port Port of a remote Node in the system.
 	 */
 	private static void join(String ip, String port) {
-		System.out.println("JoinRequestMessage - " + ip + ":" + port);
 
 		// load configuration
 		final Config config = ConfigFactory.load();

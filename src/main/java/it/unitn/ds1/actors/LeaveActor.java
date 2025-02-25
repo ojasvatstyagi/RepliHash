@@ -2,10 +2,15 @@ package it.unitn.ds1.actors;
 
 import akka.actor.Props;
 import akka.actor.UntypedActor;
+import akka.event.DiagnosticLoggingAdapter;
+import akka.event.Logging;
 import akka.japi.Creator;
 import it.unitn.ds1.messages.LeaveAcknowledgmentMessage;
 import it.unitn.ds1.messages.LeaveRequestMessage;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * This actor is used only by the client.
@@ -20,8 +25,21 @@ public class LeaveActor extends UntypedActor {
 	 */
 	private final String remote;
 
+	/**
+	 * Logger, used for debug proposes.
+	 */
+	private final DiagnosticLoggingAdapter logger;
+
+
 	private LeaveActor(@NotNull String remote) {
 		this.remote = remote;
+
+		// setup logger context
+		this.logger = Logging.getLogger(this);
+		final Map<String, Object> mdc = new HashMap<String, Object>() {{
+			put("actor", "Client");
+		}};
+		logger.setMDC(mdc);
 	}
 
 	public static Props leave(String remote) {
@@ -43,7 +61,7 @@ public class LeaveActor extends UntypedActor {
 	@Override
 	public void onReceive(Object message) throws Throwable {
 		if (message instanceof LeaveAcknowledgmentMessage) {
-			System.err.println("ACK received");
+			logger.warning("ACK received");
 			getContext().system().terminate();
 		}
 	}

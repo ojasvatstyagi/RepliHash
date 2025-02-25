@@ -8,8 +8,6 @@ import org.apache.commons.validator.routines.InetAddressValidator;
 
 /**
  * Client.
- *
- * @author Davide Pedranz
  */
 public class Client {
 
@@ -129,20 +127,6 @@ public class Client {
 			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
 
 		system.actorOf(LeaveActor.leave(remote), SystemConstants.ACTOR_NAME);
-
-//		system.actorSelection(remote).tell(new LeaveRequestMessage(), null);
-//
-//		try {
-//			Thread.sleep(1000);
-//		} catch (InterruptedException e) {
-//			e.printStackTrace();
-//		}
-//
-//		// exit
-//		Future<Terminated> future = system.terminate();
-//		future.onComplete(null, null);
-
-
 	}
 
 }

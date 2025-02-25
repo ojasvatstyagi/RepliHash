@@ -3,10 +3,7 @@ package it.unitn.ds1.messages;
 import java.io.Serializable;
 
 /**
- * Message used to communicate that a Node has successfully
- * joined the system.
- *
- * @author Davide Pedranz
+ * Message used to communicate that a Node has successfully joined the system.
  */
 public class JoinMessage implements Serializable {
 

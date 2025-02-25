@@ -3,8 +3,8 @@ package it.unitn.ds1.actors;
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import akka.actor.UntypedActor;
+import akka.event.DiagnosticLoggingAdapter;
 import akka.event.Logging;
-import akka.event.LoggingAdapter;
 import akka.japi.Creator;
 import it.unitn.ds1.messages.*;
 import org.jetbrains.annotations.NotNull;
@@ -17,25 +17,23 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Akka actor that implements the Node's behaviour.
- *
- * @author Davide Pedranz
+ * Akka actor that implements the node's behaviour.
  */
 public class NodeActor extends UntypedActor {
 
 	/**
-	 * Unique identifier for this Node.
+	 * Unique identifier for this node.
 	 */
 	private final int id;
 
 	/**
-	 * Initial state of this Node.
+	 * Initial state of this node.
 	 * This is used for a convenient initialization of the actor.
 	 */
 	private final InitialState initialState;
 
 	/**
-	 * Akka remote path to contact another Node.
+	 * Akka remote path to contact another node.
 	 * This is used to make the node leave an existing system.
 	 */
 	private final String remote;
@@ -43,7 +41,7 @@ public class NodeActor extends UntypedActor {
 	/**
 	 * Logger, used for debug proposes.
 	 */
-	private final LoggingAdapter logger;
+	private final DiagnosticLoggingAdapter logger;
 
 
 	/**
@@ -53,7 +51,7 @@ public class NodeActor extends UntypedActor {
 	private final Map<Integer, ActorRef> nodes;
 
 	/**
-	 * Internal variable used to store the current state of the Node.
+	 * Internal variable used to store the current state of the node.
 	 */
 	private State state;
 
@@ -61,10 +59,10 @@ public class NodeActor extends UntypedActor {
 	// TODO: maybe initialState is not the best name
 
 	/**
-	 * Create a new Node Actor.
+	 * Create a new node Actor.
 	 *
 	 * @param id           Unique identifier to assign to this node.
-	 * @param initialState Initial state of the Node. This determines the behaviour of the Node when started.
+	 * @param initialState Initial state of the node. This determines the behaviour of the node when started.
 	 * @param remote       Remote address of another actor to contact to leave the system.
 	 *                     This parameter is not required for the bootstrap node.
 	 */
@@ -72,22 +70,28 @@ public class NodeActor extends UntypedActor {
 		this.id = id;
 		this.initialState = initialState;
 		this.remote = remote;
-		this.logger = Logging.getLogger(getContext().system(), this);
-		this.nodes = new HashMap<>();
 
 		// add myself to the map of nodes
+		this.nodes = new HashMap<>();
 		this.nodes.put(id, getSelf());
 
 		// TODO: maybe not needed
 		// current state is STARTING... this will be changed in the preStart()
 		this.state = State.STARTING;
 
+		// setup logger context
+		this.logger = Logging.getLogger(this);
+		final Map<String, Object> mdc = new HashMap<String, Object>() {{
+			put("actor", "Node [" + id + "]");
+		}};
+		logger.setMDC(mdc);
+
 		// debug log
-		logger.info("Node [" + id + "] -> constructor: id={}, init={}, remote={}", id, initialState, remote);
+		logger.warning("Initialize node with initial state {}", initialState);
 	}
 
 	/**
-	 * Create Props for a Node that should bootstrap the system.
+	 * Create Props for a node that should bootstrap the system.
 	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
 	 */
 	public static Props bootstrap(final int id) {
@@ -102,7 +106,7 @@ public class NodeActor extends UntypedActor {
 	}
 
 	/**
-	 * Create Props for a new Node that is willing to leave the system.
+	 * Create Props for a new node that is willing to leave the system.
 	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
 	 */
 	public static Props join(final int id, String remote) {
@@ -134,8 +138,8 @@ public class NodeActor extends UntypedActor {
 	/**
 	 * This method is called after the constructor, when the actor is ready.
 	 * We use this to do the initial actions required by the actor, depending
-	 * on the initial state. For instance, if the Node needs to leave the
-	 * system, we send a message to a remote Node already in the system.
+	 * on the initial state. For instance, if the node needs to leave the
+	 * system, we send a message to a remote node already in the system.
 	 */
 	@Override
 	public void preStart() {
@@ -146,14 +150,14 @@ public class NodeActor extends UntypedActor {
 			// nothing needed in this case
 			case BOOTSTRAP:
 				this.state = State.READY;
-				logger.info("Node [" + id + "] -> preStart(), do nothing, state={}", this.state);
+				logger.info("preStart(): do nothing, move to {}", state);
 				break;
 
 			// send a message to the node provided from the command line
 			// to ask to leave the system
 			case JOIN:
 				this.state = State.JOINING_WAITING_NODES;
-				logger.info("Node [" + id + "] -> preStart(), asking to join to {}, state={}", remote, this.state);
+				logger.info("preStart(): move to {}, ask to join to {}", state, remote);
 				getContext().actorSelection(remote).tell(new JoinRequestMessage(id), getSelf());
 				break;
 
@@ -238,7 +242,7 @@ public class NodeActor extends UntypedActor {
 		final int next = nextInTheRing(nodes.keySet(), this.id);
 		final ActorRef nextNode = nodes.get(next);
 
-		// ask the data the Node is responsible for
+		// ask the data the node is responsible for
 		nextNode.tell(new DataRequestMessage(), getSelf());
 		this.state = State.JOINING_WAITING_DATA;
 	}
@@ -262,7 +266,7 @@ public class NodeActor extends UntypedActor {
 
 	private void onJoin(JoinMessage message) {
 
-		// add the Node to my list
+		// add the node to my list
 		this.nodes.put(message.getId(), getSender());
 
 		// log
@@ -293,7 +297,7 @@ public class NodeActor extends UntypedActor {
 	}
 
 	/**
-	 * Enumeration of possible initial states for a Node.
+	 * Enumeration of possible initial states for a node.
 	 * This is used to run the proper action in the #preStart() method.
 	 */
 	private enum InitialState {
@@ -303,8 +307,8 @@ public class NodeActor extends UntypedActor {
 	}
 
 	/**
-	 * Enumeration of all possible states the Node is in.
-	 * For example, the Node is joining the network and is waiting
+	 * Enumeration of all possible states the node is in.
+	 * For example, the node is joining the network and is waiting
 	 * for some reply to get operational.
 	 */
 	private enum State {

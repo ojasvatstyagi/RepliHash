@@ -2,8 +2,6 @@ package it.unitn.ds1;
 
 /**
  * Contains common settings for both the Node and the Client.
- *
- * @author Davide Pedranz
  */
 class SystemConstants {
 

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+	<!-- define how to log to the standard output -->
+	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+		<encoder>
+			<pattern>
+				%d{HH:mm:ss.SSS}  %highlight(%-5level) %35(%logger{30} [%line])  %highlight(%-8X{actor}  %msg) %n
+			</pattern>
+		</encoder>
+	</appender>
+
+	<!-- log only to standard output -->
+	<root level="TRACE">
+		<appender-ref ref="STDOUT"/>
+	</root>
+
+	<!-- blacklist -->
+	<logger name="akka.event.slf4j.Slf4jLogger">
+		<level value="off"/>
+	</logger>
+	<logger name="akka.remote.RemoteActorRefProvider">
+		<level value="off"/>
+	</logger>
+	<logger name="akka.remote.EndpointWriter">
+		<level value="off"/>
+	</logger>
+
+</configuration>
