@@ -106,7 +106,7 @@ public class NodeActor extends UntypedActor {
 	}
 
 	/**
-	 * Create Props for a new node that is willing to leave the system.
+	 * Create Props for a new node that is willing to join the system.
 	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
 	 */
 	public static Props join(final int id, String remote) {
@@ -116,6 +116,21 @@ public class NodeActor extends UntypedActor {
 			@Override
 			public NodeActor create() throws Exception {
 				return new NodeActor(id, InitialState.JOIN, remote);
+			}
+		});
+	}
+
+	/**
+	 * Create Props for a new node that is willing to join back the system after a crash.
+	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
+	 */
+	public static Props recover(final int id, String remote) {
+		return Props.create(new Creator<NodeActor>() {
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public NodeActor create() throws Exception {
+				return new NodeActor(id, InitialState.RECOVER, remote);
 			}
 		});
 	}
@@ -153,16 +168,18 @@ public class NodeActor extends UntypedActor {
 				logger.info("preStart(): do nothing, move to {}", state);
 				break;
 
-			// send a message to the node provided from the command line
-			// to ask to leave the system
+			// asks to the node provided from the command line to join the system
 			case JOIN:
 				this.state = State.JOINING_WAITING_NODES;
 				logger.info("preStart(): move to {}, ask to join to {}", state, remote);
 				getContext().actorSelection(remote).tell(new JoinRequestMessage(id), getSelf());
 				break;
 
-			// TODO
+			// asks to the node provided from the command line the nodes in the system, needed for the recovery
 			case RECOVER:
+				this.state = State.RECOVERING_WAITING_NODES;
+				logger.info("preStart(): move to {}, ask nodes to {}", state, remote);
+				getContext().actorSelection(remote).tell(new JoinRequestMessage(id), getSelf());
 				break;
 		}
 	}
@@ -229,22 +246,40 @@ public class NodeActor extends UntypedActor {
 	}
 
 	private void onNodesList(@NotNull NodesListMessage message) {
-		assert this.state == State.JOINING_WAITING_NODES;
-
-		// TODO: should I remove nodes not in this list? [I guess not]
-
+		assert state == State.JOINING_WAITING_NODES || state == State.RECOVERING_WAITING_NODES;
 		logger.info("Somebody sent the list of nodes: {}", message.getNodes());
 
 		// update my list of nodes
 		this.nodes.putAll(message.getNodes());
 
-		// compute the next node in the ring
-		final int next = nextInTheRing(nodes.keySet(), this.id);
-		final ActorRef nextNode = nodes.get(next);
+		switch (state) {
+			case JOINING_WAITING_NODES: {
 
-		// ask the data the node is responsible for
-		nextNode.tell(new DataRequestMessage(), getSelf());
-		this.state = State.JOINING_WAITING_DATA;
+				// compute the next node in the ring
+				final int next = nextInTheRing(nodes.keySet(), this.id);
+				final ActorRef nextNode = nodes.get(next);
+
+				// ask the data the node is responsible for
+				nextNode.tell(new DataRequestMessage(), getSelf());
+				this.state = State.JOINING_WAITING_DATA;
+
+				break;
+			}
+
+			case RECOVERING_WAITING_NODES: {
+
+				// TODO: load data items from file
+				// remove the old ones
+
+				// TODO: no need to announce me to the system... they should know me already
+
+				// now I am ready
+				this.state = State.READY;
+				logger.info("Recovery completed, state = {}, nodes = {}", state, nodes.keySet());
+
+				break;
+			}
+		}
 	}
 
 	@SuppressWarnings("UnusedParameters")
@@ -315,6 +350,7 @@ public class NodeActor extends UntypedActor {
 		STARTING,
 		JOINING_WAITING_NODES,
 		JOINING_WAITING_DATA,
+		RECOVERING_WAITING_NODES,
 		READY
 	}
 }

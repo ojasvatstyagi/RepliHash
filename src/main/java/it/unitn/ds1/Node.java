@@ -182,8 +182,18 @@ public class Node {
 	 * @param port Port of a remote Node in the system.
 	 */
 	private static void recover(String ip, String port) {
-		System.out.println("Recover - " + ip + ":" + port);
-		throw new RuntimeException("Not yet implemented");
+
+		// load configuration
+		final Config config = ConfigFactory.load();
+
+		// initialize Akka
+		final ActorSystem system = ActorSystem.create(SystemConstants.SYSTEM_NAME, config);
+
+		// create a NodeActor of type "leave" and add it to the system
+		final int id = config.getInt(CONFIG_NODE_ID);
+		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
+			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
+		system.actorOf(NodeActor.recover(id, remote), SystemConstants.ACTOR_NAME);
 	}
 
 }

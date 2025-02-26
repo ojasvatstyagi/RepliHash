@@ -3,10 +3,11 @@ package it.unitn.ds1.messages;
 import java.io.Serializable;
 
 /**
- * Message used to require to leave the system.
+ * Message used to require to join the system.
  */
 public class JoinRequestMessage implements Serializable {
 
+	// TODO: probably not needed
 	// message fields
 	private final int id;
 
