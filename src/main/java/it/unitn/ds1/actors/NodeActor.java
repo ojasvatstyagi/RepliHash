@@ -7,6 +7,7 @@ import akka.event.DiagnosticLoggingAdapter;
 import akka.event.Logging;
 import akka.japi.Creator;
 import it.unitn.ds1.messages.*;
+import it.unitn.ds1.storage.VersionedItem;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -51,6 +52,12 @@ public class NodeActor extends UntypedActor {
 	private final Map<Integer, ActorRef> nodes;
 
 	/**
+	 * Keep the data store in memory for higher efficiency.
+	 * This cache will use a write-through strategy for simplicity and reliability.
+	 */
+	private final Map<Integer, VersionedItem> cache;
+
+	/**
 	 * Internal variable used to store the current state of the node.
 	 */
 	private State state;
@@ -74,6 +81,9 @@ public class NodeActor extends UntypedActor {
 		// add myself to the map of nodes
 		this.nodes = new HashMap<>();
 		this.nodes.put(id, getSelf());
+
+		// create empty cache
+		this.cache = new HashMap<>();
 
 		// TODO: maybe not needed
 		// current state is STARTING... this will be changed in the preStart()
@@ -329,6 +339,31 @@ public class NodeActor extends UntypedActor {
 			.stream()
 			.filter(entry -> entry.getKey() != id)
 			.forEach(entry -> entry.getValue().tell(message, getSelf()));
+	}
+
+	/**
+	 * Extract the item with the requested key from the data-store.
+	 * We use the in-memory cache for simplicity.
+	 *
+	 * @param key Key of the data item.
+	 */
+	private VersionedItem read(int key) {
+		return cache.get(key);
+	}
+
+	/**
+	 * Write a new data item to the storage.
+	 * Also, update the in-memory cache.
+	 *
+	 * @param key  Key of the data item.
+	 * @param item Value and version of the data item.
+	 */
+	private void write(int key, VersionedItem item) {
+
+		// TODO: write to disk
+
+		// write-though cache
+		cache.put(key, item);
 	}
 
 	/**
