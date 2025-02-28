@@ -4,6 +4,7 @@ import akka.actor.ActorSystem;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import it.unitn.ds1.actors.LeaveActor;
+import it.unitn.ds1.actors.ReadActor;
 import org.apache.commons.validator.routines.InetAddressValidator;
 
 /**
@@ -54,6 +55,23 @@ public class Client {
 	}
 
 	/**
+	 * Try to parse some string to an integer.
+	 * On failure, output an error and exit.
+	 *
+	 * @param raw String to parse.
+	 * @return Integer (if found).
+	 */
+	private static int parseIntOrExit(String raw) {
+		try {
+			return Integer.valueOf(raw);
+		} catch (NumberFormatException e) {
+			System.err.println("Key must be an Integer.");
+			printHelpAndExit();
+			throw new RuntimeException("Should not be here...");
+		}
+	}
+
+	/**
 	 * Entry point.
 	 *
 	 * @param args Command line arguments.
@@ -85,13 +103,24 @@ public class Client {
 					printHelpAndExit();
 				}
 
-				// bootstrap the system
+				// ask the node to leave
 				leave(ip, port);
 				break;
 			}
 
-			// TODO
+			// read a key from the system
 			case "read": {
+
+				// validate number of arguments
+				if (args.length != 4) {
+					printHelpAndExit();
+				}
+
+				// extract the key
+				final int key = parseIntOrExit(args[3]);
+
+				// ask the value for the key
+				read(ip, port, key);
 				break;
 			}
 
@@ -129,4 +158,18 @@ public class Client {
 		system.actorOf(LeaveActor.leave(remote), SystemConstants.ACTOR_NAME);
 	}
 
+	private static void read(String ip, String port, int key) {
+
+		// load configuration
+		final Config config = ConfigFactory.load();
+
+		// initialize Akka
+		final ActorSystem system = ActorSystem.create(SystemConstants.SYSTEM_NAME, config);
+
+		// send the leave message to the Node
+		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
+			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
+
+		system.actorOf(ReadActor.read(remote, key), SystemConstants.ACTOR_NAME);
+	}
 }

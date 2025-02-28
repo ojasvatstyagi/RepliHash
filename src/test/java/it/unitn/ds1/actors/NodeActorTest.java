@@ -35,4 +35,39 @@ public class NodeActorTest {
 		assertEquals(1, actualNext);
 	}
 
+	@Test
+	public void responsibleForKeyAllBigger() {
+		final Set<Integer> ids = Sets.newHashSet(10, 20, 30, 40, 50, 60, 70, 80, 90, 100);
+		final Set<Integer> actual = NodeActor.responsibleForKey(ids, 0, 5);
+		assertEquals(Sets.newHashSet(10, 20, 30, 40, 50), actual);
+	}
+
+	@Test
+	public void responsibleForKeyAllSmaller() {
+		final Set<Integer> ids = Sets.newHashSet(10, 20, 30, 40, 50, 60, 70, 80, 90, 100);
+		final Set<Integer> actual = NodeActor.responsibleForKey(ids, 200, 4);
+		assertEquals(Sets.newHashSet(10, 20, 30, 40), actual);
+	}
+
+	@Test
+	public void responsibleForKeyGeneral1() {
+		final Set<Integer> ids = Sets.newHashSet(10, 20, 30, 40, 50, 60, 70, 80, 90, 100);
+		final Set<Integer> actual = NodeActor.responsibleForKey(ids, 50, 3);
+		assertEquals(Sets.newHashSet(50, 60, 70), actual);
+	}
+
+	@Test
+	public void responsibleForKeyGeneral2() {
+		final Set<Integer> ids = Sets.newHashSet(10, 20, 30, 40, 50, 60, 70, 80, 90, 100);
+		final Set<Integer> actual = NodeActor.responsibleForKey(ids, 51, 3);
+		assertEquals(Sets.newHashSet(60, 70, 80), actual);
+	}
+
+	@Test
+	public void responsibleForAll() {
+		final Set<Integer> ids = Sets.newHashSet(10, 20, 30, 40, 50, 60, 70, 80, 90, 100);
+		final Set<Integer> actual = NodeActor.responsibleForKey(ids, 50, 10);
+		assertEquals(ids, actual);
+	}
+
 }

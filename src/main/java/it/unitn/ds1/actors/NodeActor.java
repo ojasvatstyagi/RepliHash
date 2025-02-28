@@ -6,6 +6,7 @@ import akka.actor.UntypedActor;
 import akka.event.DiagnosticLoggingAdapter;
 import akka.event.Logging;
 import akka.japi.Creator;
+import it.unitn.ds1.SystemConstants;
 import it.unitn.ds1.messages.*;
 import it.unitn.ds1.storage.VersionedItem;
 import org.jetbrains.annotations.NotNull;
@@ -16,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Akka actor that implements the node's behaviour.
@@ -161,6 +163,24 @@ public class NodeActor extends UntypedActor {
 	}
 
 	/**
+	 * Return the IDs responsible for the given key.
+	 *
+	 * @param ids All IDs.
+	 * @param key Key.
+	 * @param n   Replication factor.
+	 * @return Set of responsible IDs.
+	 */
+	static Set<Integer> responsibleForKey(@NotNull Set<Integer> ids, int key, int n) {
+		assert n <= ids.size();
+		return ids.stream().sorted((o1, o2) -> {
+			if (o1 >= key && o2 >= key) return o1 - o2;
+			if (o1 >= key && o2 < key) return -1;
+			if (o1 < key && o2 >= key) return +1;
+			else return o1 - o2;
+		}).limit(n).collect(Collectors.toSet());
+	}
+
+	/**
 	 * This method is called after the constructor, when the actor is ready.
 	 * We use this to do the initial actions required by the actor, depending
 	 * on the initial state. For instance, if the node needs to leave the
@@ -204,6 +224,8 @@ public class NodeActor extends UntypedActor {
 			onNodesList((NodesListMessage) message);
 		} else if (message instanceof LeaveRequestMessage) {
 			onLeaveRequest();
+		} else if (message instanceof ClientReadRequestMessage) {
+			onClientReadRequest((ClientReadRequestMessage) message);
 		} else if (message instanceof DataMessage) {
 			onData((DataMessage) message);
 		} else if (message instanceof JoinMessage) {
@@ -291,6 +313,28 @@ public class NodeActor extends UntypedActor {
 			}
 		}
 	}
+
+	private void onClientReadRequest(@NotNull ClientReadRequestMessage message) {
+
+		// extract the key to search
+		final int key = message.getKey();
+
+		// get the nodes responsible for that key
+		if (SystemConstants.READ_QUORUM > nodes.size()) {
+			logger.warning("Client request for key {}... but there are not enough nodes in the system: quorum={}, nodes={}",
+				key, SystemConstants.READ_QUORUM, nodes.size());
+
+			// TODO...
+
+		} else {
+			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, SystemConstants.REPLICATION);
+			logger.info("Client request for key {}. Asking nodes {}", key, responsible);
+
+			// ask everybody for the key
+			// TODO...
+		}
+	}
+
 
 	@SuppressWarnings("UnusedParameters")
 	private void onData(@NotNull DataMessage message) {
