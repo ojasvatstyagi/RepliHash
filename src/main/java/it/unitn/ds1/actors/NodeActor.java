@@ -244,7 +244,7 @@ public class NodeActor extends UntypedActor {
 		logger.info("Node [{}] asks to join the network", message.getId());
 
 		// send back the list of nodes
-		getSender().tell(new NodesListMessage(nodes), getSelf());
+		reply(new NodesListMessage(nodes));
 	}
 
 	@SuppressWarnings("UnusedParameters")
@@ -257,7 +257,7 @@ public class NodeActor extends UntypedActor {
 		// TODO: extract the data
 
 		// send back the data
-		getSender().tell(new DataMessage(), getSelf());
+		reply(new DataMessage());
 	}
 
 	private void onLeaveRequest() {
@@ -269,7 +269,7 @@ public class NodeActor extends UntypedActor {
 		multicast(new LeaveMessage(id));
 
 		// eventually, acknowledge the client
-		getSender().tell(new LeaveAcknowledgmentMessage(), getSelf());
+		reply(new LeaveAcknowledgmentMessage(id));
 
 		// TODO: cancel the storage?
 
@@ -332,6 +332,9 @@ public class NodeActor extends UntypedActor {
 
 			// ask everybody for the key
 			// TODO...
+
+			// TODO: fake, to remove
+			reply(new ClientReadResultMessage(id, key, "TODO: this is just a fake value"));
 		}
 	}
 
@@ -386,6 +389,15 @@ public class NodeActor extends UntypedActor {
 	}
 
 	/**
+	 * Reply to the actor that sent the last message.
+	 *
+	 * @param reply Message to sent back.
+	 */
+	private void reply(Serializable reply) {
+		getSender().tell(reply, getSelf());
+	}
+
+	/**
 	 * Extract the item with the requested key from the data-store.
 	 * We use the in-memory cache for simplicity.
 	 *
@@ -412,7 +424,7 @@ public class NodeActor extends UntypedActor {
 
 	/**
 	 * Enumeration of possible initial states for a node.
-	 * This is used to run the proper action in the #preStart() method.
+	 * This is used to execute the proper action in the #preStart() method.
 	 */
 	private enum InitialState {
 		BOOTSTRAP,

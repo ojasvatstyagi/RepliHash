@@ -1,11 +1,9 @@
 package it.unitn.ds1;
 
-import akka.actor.ActorSystem;
-import com.typesafe.config.Config;
-import com.typesafe.config.ConfigFactory;
-import it.unitn.ds1.actors.LeaveActor;
-import it.unitn.ds1.actors.ReadActor;
+import it.unitn.ds1.client.LeaveCommand;
+import it.unitn.ds1.client.ReadCommand;
 import org.apache.commons.validator.routines.InetAddressValidator;
+
 
 /**
  * Client.
@@ -136,40 +134,11 @@ public class Client {
 		}
 	}
 
-	/**
-	 * Asks to a Node to leave the system.
-	 *
-	 * @param ip   IP of the Node.
-	 * @param port TCP port of the Node.
-	 */
 	private static void leave(String ip, String port) {
-		System.out.println("Leave request for - " + ip + ":" + port);
-
-		// load configuration
-		final Config config = ConfigFactory.load();
-
-		// initialize Akka
-		final ActorSystem system = ActorSystem.create(SystemConstants.SYSTEM_NAME, config);
-
-		// send the leave message to the Node
-		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
-			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
-
-		system.actorOf(LeaveActor.leave(remote), SystemConstants.ACTOR_NAME);
+		new LeaveCommand(ip, port).execute();
 	}
 
 	private static void read(String ip, String port, int key) {
-
-		// load configuration
-		final Config config = ConfigFactory.load();
-
-		// initialize Akka
-		final ActorSystem system = ActorSystem.create(SystemConstants.SYSTEM_NAME, config);
-
-		// send the leave message to the Node
-		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
-			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
-
-		system.actorOf(ReadActor.read(remote, key), SystemConstants.ACTOR_NAME);
+		new ReadCommand(ip, port, key).execute();
 	}
 }

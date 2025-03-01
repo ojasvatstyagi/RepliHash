@@ -5,7 +5,7 @@
 	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
 		<encoder>
 			<pattern>
-				%d{HH:mm:ss.SSS}  %highlight(%-5level) %35(%logger{30} [%line])  %highlight(%-8X{actor}  %msg) %n
+				%d{HH:mm:ss.SSS}  %highlight(%-5level) %38(%logger{33} [%line])  %highlight(%-8X{actor}  %msg) %n
 			</pattern>
 		</encoder>
 	</appender>

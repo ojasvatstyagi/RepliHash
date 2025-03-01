@@ -1,5 +1,7 @@
 package it.unitn.ds1;
 
+// TODO: make an Interface?
+
 /**
  * Contains common settings for both the Node and the Client.
  */
@@ -13,10 +15,11 @@ public class SystemConstants {
 	 * Unique name for the Akka application.
 	 * Used by Akka to contact the other Nodes of the system.
 	 */
-	static final String SYSTEM_NAME = "dsproject";
+	public static final String SYSTEM_NAME = "dsproject";
+
 	/**
 	 * Unique name for the Akka Node Actor.
 	 * Used by Akka to contact the other Nodes of the system.
 	 */
-	static final String ACTOR_NAME = "node";
+	public static final String ACTOR_NAME = "node";
 }
