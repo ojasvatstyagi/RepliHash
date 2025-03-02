@@ -2,7 +2,6 @@ package it.unitn.ds1.messages;
 
 import akka.actor.ActorRef;
 
-import java.io.Serializable;
 import java.util.Collections;
 import java.util.Map;
 
@@ -10,7 +9,7 @@ import java.util.Map;
  * Message used to transmit the list of Nodes in the system.
  * Used during the leave phase.
  */
-public class NodesListMessage implements Serializable {
+public class NodesListMessage extends BaseMessage {
 
 	// message fields
 	private final Map<Integer, ActorRef> nodes;
@@ -18,10 +17,12 @@ public class NodesListMessage implements Serializable {
 	/**
 	 * Nodes List Message: transmit the Nodes present in the system.
 	 *
-	 * @param nodes Nodes in the system. Note that the provided map will be
-	 *              copied and made unmodifiable before sending it in the message.
+	 * @param senderID ID of the sender node.
+	 * @param nodes    Nodes in the system. Note that the provided map will be
+	 *                 copied and made unmodifiable before sending it in the message.
 	 */
-	public NodesListMessage(final Map<Integer, ActorRef> nodes) {
+	public NodesListMessage(int senderID, Map<Integer, ActorRef> nodes) {
+		super(senderID);
 		this.nodes = Collections.unmodifiableMap(nodes);
 	}
 

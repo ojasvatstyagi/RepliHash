@@ -8,6 +8,10 @@ import akka.event.Logging;
 import akka.japi.Creator;
 import it.unitn.ds1.SystemConstants;
 import it.unitn.ds1.messages.*;
+import it.unitn.ds1.messages.client.ClientLeaveResponse;
+import it.unitn.ds1.messages.client.ClientLeaveRequest;
+import it.unitn.ds1.messages.client.ClientReadRequest;
+import it.unitn.ds1.messages.client.ClientReadResponse;
 import it.unitn.ds1.storage.VersionedItem;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -20,64 +24,46 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Akka actor that implements the node's behaviour.
+ * Akka Actor that implements the node's behaviour.
  */
 public class NodeActor extends UntypedActor {
 
-	/**
-	 * Unique identifier for this node.
-	 */
+	// Unique identifier for this node
 	private final int id;
 
-	/**
-	 * Initial state of this node.
-	 * This is used for a convenient initialization of the actor.
-	 */
-	private final InitialState initialState;
+	// Command used to launch the node.
+	// This is used for a convenient initialization of the actor.
+	private final StartupCommand startupCommand;
 
-	/**
-	 * Akka remote path to contact another node.
-	 * This is used to make the node leave an existing system.
-	 */
+	// Akka remote path to contact another node.
+	// This is used to make the node leave an existing system.
 	private final String remote;
 
-	/**
-	 * Logger, used for debug proposes.
-	 */
+	// Logger, used for debug proposes.
 	private final DiagnosticLoggingAdapter logger;
 
-
-	/**
-	 * Internal variable used to keep track of the other nodes in the system.
-	 * NB: this map contains also myself!
-	 */
+	// Internal variable used to keep track of the other nodes in the system.
+	// NB: this map contains also myself!
 	private final Map<Integer, ActorRef> nodes;
 
-	/**
-	 * Keep the data store in memory for higher efficiency.
-	 * This cache will use a write-through strategy for simplicity and reliability.
-	 */
+	// Keep the data store in memory for higher efficiency.
+	// This cache will use a write-through strategy for simplicity and reliability.
 	private final Map<Integer, VersionedItem> cache;
 
-	/**
-	 * Internal variable used to store the current state of the node.
-	 */
+	// Internal variable used to store the current state of the node.
 	private State state;
-
-
-	// TODO: maybe initialState is not the best name
 
 	/**
 	 * Create a new node Actor.
 	 *
-	 * @param id           Unique identifier to assign to this node.
-	 * @param initialState Initial state of the node. This determines the behaviour of the node when started.
-	 * @param remote       Remote address of another actor to contact to leave the system.
-	 *                     This parameter is not required for the bootstrap node.
+	 * @param id             Unique identifier to assign to this node.
+	 * @param startupCommand Initial state of the node. This determines the behaviour of the node when started.
+	 * @param remote         Remote address of another actor to contact to leave the system.
+	 *                       This parameter is not required for the bootstrap node.
 	 */
-	private NodeActor(int id, @NotNull InitialState initialState, @Nullable String remote) {
+	private NodeActor(int id, @NotNull StartupCommand startupCommand, @Nullable String remote) {
 		this.id = id;
-		this.initialState = initialState;
+		this.startupCommand = startupCommand;
 		this.remote = remote;
 
 		// add myself to the map of nodes
@@ -87,10 +73,6 @@ public class NodeActor extends UntypedActor {
 		// create empty cache
 		this.cache = new HashMap<>();
 
-		// TODO: maybe not needed
-		// current state is STARTING... this will be changed in the preStart()
-		this.state = State.STARTING;
-
 		// setup logger context
 		this.logger = Logging.getLogger(this);
 		final Map<String, Object> mdc = new HashMap<String, Object>() {{
@@ -99,7 +81,7 @@ public class NodeActor extends UntypedActor {
 		logger.setMDC(mdc);
 
 		// debug log
-		logger.warning("Initialize node with initial state {}", initialState);
+		logger.warning("Initialize node with initial state {}", startupCommand);
 	}
 
 	/**
@@ -112,7 +94,7 @@ public class NodeActor extends UntypedActor {
 
 			@Override
 			public NodeActor create() throws Exception {
-				return new NodeActor(id, InitialState.BOOTSTRAP, null);
+				return new NodeActor(id, StartupCommand.BOOTSTRAP, null);
 			}
 		});
 	}
@@ -127,7 +109,7 @@ public class NodeActor extends UntypedActor {
 
 			@Override
 			public NodeActor create() throws Exception {
-				return new NodeActor(id, InitialState.JOIN, remote);
+				return new NodeActor(id, StartupCommand.JOIN, remote);
 			}
 		});
 	}
@@ -142,7 +124,7 @@ public class NodeActor extends UntypedActor {
 
 			@Override
 			public NodeActor create() throws Exception {
-				return new NodeActor(id, InitialState.RECOVER, remote);
+				return new NodeActor(id, StartupCommand.RECOVER, remote);
 			}
 		});
 	}
@@ -190,7 +172,7 @@ public class NodeActor extends UntypedActor {
 	public void preStart() {
 
 		// depending on the initialization, decide what to do
-		switch (initialState) {
+		switch (startupCommand) {
 
 			// nothing needed in this case
 			case BOOTSTRAP:
@@ -212,6 +194,9 @@ public class NodeActor extends UntypedActor {
 				getContext().actorSelection(remote).tell(new JoinRequestMessage(id), getSelf());
 				break;
 		}
+
+		// preStart must initialize the state
+		assert this.state != null;
 	}
 
 	@Override
@@ -222,10 +207,10 @@ public class NodeActor extends UntypedActor {
 			onDataRequest((DataRequestMessage) message);
 		} else if (message instanceof NodesListMessage) {
 			onNodesList((NodesListMessage) message);
-		} else if (message instanceof LeaveRequestMessage) {
+		} else if (message instanceof ClientLeaveRequest) {
 			onLeaveRequest();
-		} else if (message instanceof ClientReadRequestMessage) {
-			onClientReadRequest((ClientReadRequestMessage) message);
+		} else if (message instanceof ClientReadRequest) {
+			onClientReadRequest((ClientReadRequest) message);
 		} else if (message instanceof DataMessage) {
 			onData((DataMessage) message);
 		} else if (message instanceof JoinMessage) {
@@ -241,10 +226,10 @@ public class NodeActor extends UntypedActor {
 
 		// TODO: check that I am ready to reply
 
-		logger.info("Node [{}] asks to join the network", message.getId());
+		logger.info("Node [{}] asks to join the network", message.getSenderID());
 
 		// send back the list of nodes
-		reply(new NodesListMessage(nodes));
+		reply(new NodesListMessage(id, nodes));
 	}
 
 	@SuppressWarnings("UnusedParameters")
@@ -257,7 +242,7 @@ public class NodeActor extends UntypedActor {
 		// TODO: extract the data
 
 		// send back the data
-		reply(new DataMessage());
+		reply(new DataMessage(id));
 	}
 
 	private void onLeaveRequest() {
@@ -269,7 +254,7 @@ public class NodeActor extends UntypedActor {
 		multicast(new LeaveMessage(id));
 
 		// eventually, acknowledge the client
-		reply(new LeaveAcknowledgmentMessage(id));
+		reply(new ClientLeaveResponse(id));
 
 		// TODO: cancel the storage?
 
@@ -288,11 +273,11 @@ public class NodeActor extends UntypedActor {
 			case JOINING_WAITING_NODES: {
 
 				// compute the next node in the ring
-				final int next = nextInTheRing(nodes.keySet(), this.id);
+				final int next = nextInTheRing(nodes.keySet(), id);
 				final ActorRef nextNode = nodes.get(next);
 
 				// ask the data the node is responsible for
-				nextNode.tell(new DataRequestMessage(), getSelf());
+				nextNode.tell(new DataRequestMessage(id), getSelf());
 				this.state = State.JOINING_WAITING_DATA;
 
 				break;
@@ -314,7 +299,7 @@ public class NodeActor extends UntypedActor {
 		}
 	}
 
-	private void onClientReadRequest(@NotNull ClientReadRequestMessage message) {
+	private void onClientReadRequest(@NotNull ClientReadRequest message) {
 
 		// extract the key to search
 		final int key = message.getKey();
@@ -334,7 +319,7 @@ public class NodeActor extends UntypedActor {
 			// TODO...
 
 			// TODO: fake, to remove
-			reply(new ClientReadResultMessage(id, key, "TODO: this is just a fake value"));
+			reply(new ClientReadResponse(id, key, "TODO: this is just a fake value"));
 		}
 	}
 
@@ -359,10 +344,10 @@ public class NodeActor extends UntypedActor {
 	private void onJoin(JoinMessage message) {
 
 		// add the node to my list
-		this.nodes.put(message.getId(), getSender());
+		this.nodes.put(message.getSenderID(), getSender());
 
 		// log
-		logger.info("Node [{}] is joining. Nodes = {}", message.getId(), nodes.keySet());
+		logger.info("Node [{}] is joining. Nodes = {}", message.getSenderID(), nodes.keySet());
 
 		// TODO: remove the keys I am not responsible for
 	}
@@ -370,10 +355,10 @@ public class NodeActor extends UntypedActor {
 	private void onLeave(LeaveMessage message) {
 
 		// remove it from my nodes
-		this.nodes.remove(message.getId());
+		this.nodes.remove(message.getSenderID());
 
 		// log
-		logger.info("Node [{}] is leaving. Nodes = {}", message.getId(), nodes.keySet());
+		logger.info("Node [{}] is leaving. Nodes = {}", message.getSenderID(), nodes.keySet());
 	}
 
 	/**
@@ -426,7 +411,7 @@ public class NodeActor extends UntypedActor {
 	 * Enumeration of possible initial states for a node.
 	 * This is used to execute the proper action in the #preStart() method.
 	 */
-	private enum InitialState {
+	private enum StartupCommand {
 		BOOTSTRAP,
 		JOIN,
 		RECOVER
@@ -438,7 +423,6 @@ public class NodeActor extends UntypedActor {
 	 * for some reply to get operational.
 	 */
 	private enum State {
-		STARTING,
 		JOINING_WAITING_NODES,
 		JOINING_WAITING_DATA,
 		RECOVERING_WAITING_NODES,

@@ -1,19 +1,22 @@
-package it.unitn.ds1.messages;
+package it.unitn.ds1.messages.client;
 
 import java.io.Serializable;
 
 /**
  * Message to request the read of some key. This message used by the client.
  */
-public class ClientReadRequestMessage implements Serializable {
+public class ClientReadRequest implements Serializable {
 
-	// key I am requesting to read
+	// message fields
 	private final int key;
 
-	public ClientReadRequestMessage(int key) {
+	public ClientReadRequest(int key) {
 		this.key = key;
 	}
 
+	/**
+	 * @return The key to read from the system.
+	 */
 	public int getKey() {
 		return key;
 	}

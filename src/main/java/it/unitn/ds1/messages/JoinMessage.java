@@ -1,28 +1,12 @@
 package it.unitn.ds1.messages;
 
-import java.io.Serializable;
-
 /**
  * Message used to communicate that a Node has successfully joined the system.
  */
-public class JoinMessage implements Serializable {
+public class JoinMessage extends BaseMessage {
 
-	// message fields
-	private final int id;
-
-	/**
-	 * Join Message: the Node is joining the system.
-	 *
-	 * @param id ID of the Node joining the system.
-	 */
-	public JoinMessage(int id) {
-		this.id = id;
+	public JoinMessage(int senderID) {
+		super(senderID);
 	}
 
-	/**
-	 * @return The ID of the Node joining.
-	 */
-	public int getId() {
-		return id;
-	}
 }

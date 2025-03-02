@@ -4,8 +4,8 @@ import akka.actor.ActorSelection;
 import akka.event.LoggingAdapter;
 import akka.pattern.Patterns;
 import akka.util.Timeout;
-import it.unitn.ds1.messages.LeaveAcknowledgmentMessage;
-import it.unitn.ds1.messages.LeaveRequestMessage;
+import it.unitn.ds1.messages.client.ClientLeaveRequest;
+import it.unitn.ds1.messages.client.ClientLeaveResponse;
 import scala.concurrent.Await;
 import scala.concurrent.Future;
 
@@ -25,13 +25,13 @@ public final class LeaveCommand extends BaseCommand {
 
 		// instruct the target actor to leave the system
 		final Timeout timeout = new Timeout(5, TimeUnit.SECONDS);
-		final Future<Object> future = Patterns.ask(actor, new LeaveRequestMessage(), timeout);
+		final Future<Object> future = Patterns.ask(actor, new ClientLeaveRequest(), timeout);
 
 		// wait for an acknowledgement
 		final Object message = Await.result(future, timeout.duration());
-		assert message instanceof LeaveAcknowledgmentMessage;
+		assert message instanceof ClientLeaveResponse;
 
 		// log the result
-		logger.info("Actor [{}] has successful left the system.", ((LeaveAcknowledgmentMessage) message).getId());
+		logger.info("Actor [{}] has successful left the system.", ((ClientLeaveResponse) message).getSenderID());
 	}
 }
