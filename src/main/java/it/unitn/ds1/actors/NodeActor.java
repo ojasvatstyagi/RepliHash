@@ -8,8 +8,8 @@ import akka.event.Logging;
 import akka.japi.Creator;
 import it.unitn.ds1.SystemConstants;
 import it.unitn.ds1.messages.*;
-import it.unitn.ds1.messages.client.ClientLeaveResponse;
 import it.unitn.ds1.messages.client.ClientLeaveRequest;
+import it.unitn.ds1.messages.client.ClientLeaveResponse;
 import it.unitn.ds1.messages.client.ClientReadRequest;
 import it.unitn.ds1.messages.client.ClientReadResponse;
 import it.unitn.ds1.storage.VersionedItem;
@@ -237,7 +237,7 @@ public class NodeActor extends UntypedActor {
 
 		// TODO: check that I am ready to reply
 
-		logger.info("Somebody asked me the data");
+		logger.info("Node [{}] asks my data", message.getSenderID());
 
 		// TODO: extract the data
 
@@ -246,7 +246,7 @@ public class NodeActor extends UntypedActor {
 	}
 
 	private void onLeaveRequest() {
-		logger.info("Leave request");
+		logger.info("The Client requests me to leave");
 
 		// TODO: do stuff, exit protocol
 
@@ -264,7 +264,7 @@ public class NodeActor extends UntypedActor {
 
 	private void onNodesList(@NotNull NodesListMessage message) {
 		assert state == State.JOINING_WAITING_NODES || state == State.RECOVERING_WAITING_NODES;
-		logger.info("Somebody sent the list of nodes: {}", message.getNodes());
+		logger.info("Node [{}] sends the list of nodes: {}", message.getSenderID(), message.getNodes().keySet());
 
 		// update my list of nodes
 		this.nodes.putAll(message.getNodes());
@@ -330,7 +330,7 @@ public class NodeActor extends UntypedActor {
 
 		// TODO: store data
 
-		logger.info("Somebody sent the me the data it is responsible for. Sending Join msg...");
+		logger.info("Node [{}] sends the data it is responsible for. Sending Join msg...", message.getSenderID());
 
 		// announce everybody that I am part of the system
 		multicast(new JoinMessage(id));
