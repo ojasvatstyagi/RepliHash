@@ -3,7 +3,7 @@ package it.unitn.ds1;
 import akka.actor.ActorSystem;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
-import it.unitn.ds1.actors.NodeActor;
+import it.unitn.ds1.node.NodeActor;
 import org.apache.commons.validator.routines.InetAddressValidator;
 
 /**

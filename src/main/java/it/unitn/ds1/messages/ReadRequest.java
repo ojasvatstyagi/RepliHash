@@ -6,14 +6,21 @@ import it.unitn.ds1.messages.client.ClientReadRequest;
  * Message to request the read of some key. This message is internal to the system.
  * See @{@link ClientReadRequest} for the client to ask a key.
  */
-public class ReadRequestMessage extends BaseMessage {
+public class ReadRequest extends BaseMessage {
 
 	// message fields
+	private final int requestID;
 	private final int key;
 
-	public ReadRequestMessage(int senderID, int key) {
+	public ReadRequest(int senderID, int requestID, int key) {
 		super(senderID);
+		this.requestID = requestID;
 		this.key = key;
+	}
+
+	// TODO: doc
+	public int getRequestID() {
+		return requestID;
 	}
 
 	/**

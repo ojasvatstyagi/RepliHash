@@ -1,4 +1,4 @@
-package it.unitn.ds1.actors;
+package it.unitn.ds1.node;
 
 import akka.actor.ActorRef;
 import akka.actor.Props;
@@ -50,6 +50,14 @@ public class NodeActor extends UntypedActor {
 	// This cache will use a write-through strategy for simplicity and reliability.
 	private final Map<Integer, VersionedItem> cache;
 
+	// Read requests the node is responsible for
+	// Maps the requestID to the request status
+	private final Map<Integer, ReadRequestStatus> readRequests;
+
+	// Unique incremental identifier for each read request
+	// The counter is to be considered unique only inside the same node
+	private int readsCount;
+
 	// Internal variable used to store the current state of the node.
 	private State state;
 
@@ -72,6 +80,10 @@ public class NodeActor extends UntypedActor {
 
 		// create empty cache
 		this.cache = new HashMap<>();
+
+		// initialize other variables
+		this.readRequests = new HashMap<>();
+		this.readsCount = 0;
 
 		// setup logger context
 		this.logger = Logging.getLogger(this);
@@ -153,7 +165,7 @@ public class NodeActor extends UntypedActor {
 	 * @return Set of responsible IDs.
 	 */
 	static Set<Integer> responsibleForKey(@NotNull Set<Integer> ids, int key, int n) {
-		assert n <= ids.size();
+		assert n <= ids.size();                                // TODO: is this real???
 		return ids.stream().sorted((o1, o2) -> {
 			if (o1 >= key && o2 >= key) return o1 - o2;
 			if (o1 >= key && o2 < key) return -1;
@@ -211,6 +223,10 @@ public class NodeActor extends UntypedActor {
 			onLeaveRequest();
 		} else if (message instanceof ClientReadRequest) {
 			onClientReadRequest((ClientReadRequest) message);
+		} else if (message instanceof ReadRequest) {
+			onReadRequest((ReadRequest) message);
+		} else if (message instanceof ReadResponse) {
+			onReadResponse((ReadResponse) message);
 		} else if (message instanceof DataMessage) {
 			onData((DataMessage) message);
 		} else if (message instanceof JoinMessage) {
@@ -232,7 +248,6 @@ public class NodeActor extends UntypedActor {
 		reply(new NodesListMessage(id, nodes));
 	}
 
-	@SuppressWarnings("UnusedParameters")
 	private void onDataRequest(@NotNull DataRequestMessage message) {
 
 		// TODO: check that I am ready to reply
@@ -312,19 +327,66 @@ public class NodeActor extends UntypedActor {
 			// TODO...
 
 		} else {
+
+			// store the read request to be able to process the responses
+			readsCount++;
+			readRequests.put(readsCount, new ReadRequestStatus(key, getSender(), SystemConstants.READ_QUORUM));
+
+			// ask the responsible nodes for the key
 			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, SystemConstants.REPLICATION);
 			logger.info("Client request for key {}. Asking nodes {}", key, responsible);
+			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, readsCount, key), getSelf()));
 
-			// ask everybody for the key
-			// TODO...
+			// TODO: set timeout to cleanup old requests
+		}
+	}
 
-			// TODO: fake, to remove
-			reply(new ClientReadResponse(id, key, "TODO: this is just a fake value"));
+	private void onReadRequest(ReadRequest message) {
+
+		// extract the key to search
+		final int key = message.getKey();
+
+		// TODO: assertion that I am responsible?
+
+		// read the value from the data-store and send it back
+		final VersionedItem item = read(key);
+		reply(new ReadResponse(id, message.getRequestID(), key, item));
+	}
+
+	private void onReadResponse(ReadResponse message) {
+
+		// TODO: assert something here?
+
+		// check that the request is still valid
+		final int requestID = message.getRequestID();
+		final boolean valid = readRequests.containsKey(message.getRequestID());
+
+		// not valid -> ignore the message
+		if (!valid) {
+			logger.info("Got an old vote for read request [{}] from node [{}]", requestID, message.getSenderID());
+		}
+
+		// valid -> add it to the voting
+		else {
+			logger.info("Got a valid vote for read request [{}] from node [{}]", requestID, message.getSenderID());
+			final ReadRequestStatus status = readRequests.get(requestID);
+			status.addVote(message.getValue());
+
+			// check quorum
+			if (status.isQuorumReached()) {
+				logger.info("Quorum reached for read request [{}] - result is \"{}\"", requestID, status.getLatestValue());
+				status.getSender().tell(new ClientReadResponse(id, status.getKey(), status.getLatestValue()), getSelf());
+
+				// cleanup memory
+				this.readRequests.remove(requestID);
+
+			} else {
+				logger.info("Quorum NOT yet reached for read request [{}] - waiting...", requestID);
+			}
 		}
 	}
 
 
-	@SuppressWarnings("UnusedParameters")
 	private void onData(@NotNull DataMessage message) {
 		assert this.state == State.JOINING_WAITING_DATA;
 
@@ -388,6 +450,7 @@ public class NodeActor extends UntypedActor {
 	 *
 	 * @param key Key of the data item.
 	 */
+	@Nullable
 	private VersionedItem read(int key) {
 		return cache.get(key);
 	}

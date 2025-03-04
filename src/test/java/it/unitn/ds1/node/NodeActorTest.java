@@ -1,4 +1,4 @@
-package it.unitn.ds1.actors;
+package it.unitn.ds1.node;
 
 import com.google.common.collect.Sets;
 import org.junit.Test;

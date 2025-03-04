@@ -44,9 +44,11 @@ public final class ReadCommand extends BaseCommand {
 			logger.info("Actor [{}] replies... value of key ({}) is \"{}\"",
 				result.getSenderID(), result.getKey(), result.getValue());
 		} else {
-			logger.warning("Actor [{}] replies... key ({}) was NOT found on the system\"\"",
-				result.getSenderID(), result.getKey(), result.getValue());
+			logger.warning("Actor [{}] replies... key ({}) was NOT FOUND on the system",
+				result.getSenderID(), result.getKey());
 		}
+
+		// TODO: return some exit code???
 	}
 
 }

@@ -10,6 +10,7 @@ public class VersionedItem {
 	private final int version;
 
 	public VersionedItem(String value, int version) {
+		assert version > 0;
 		this.value = value;
 		this.version = version;
 	}
