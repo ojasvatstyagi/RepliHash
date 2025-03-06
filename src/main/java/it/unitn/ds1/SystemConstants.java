@@ -22,4 +22,10 @@ public class SystemConstants {
 	 * Used by Akka to contact the other Nodes of the system.
 	 */
 	public static final String ACTOR_NAME = "node";
+
+
+	/**
+	 * File where persistent storage of a node is maintained
+	 */
+	public static final String STORAGE_LOCATION = "/tmp/nodeStorage.txt";
 }

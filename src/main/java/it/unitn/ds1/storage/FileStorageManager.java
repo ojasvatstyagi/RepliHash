@@ -1,5 +1,6 @@
 package it.unitn.ds1.storage;
 
+import it.unitn.ds1.SystemConstants;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
@@ -15,7 +16,7 @@ import java.util.Map;
  */
 public class FileStorageManager implements StorageManager {
 
-	public static String FILE_LOCATION = "/tmp/csvFile.csv";
+	private static CSVFormat CUSTOM_CSV_FORMAT = CSVFormat.DEFAULT.withRecordSeparator(',');
 
 	public static void createFile(String location) throws IOException {
 		File file = new File(location);
@@ -24,22 +25,35 @@ public class FileStorageManager implements StorageManager {
 		}
 	}
 
+	private StorageManager storageManager;
 	private String fileLocation;
 
-	public FileStorageManager(String fileLocation) {
-		this.fileLocation = fileLocation;
+	private FileStorageManager() throws IOException {
+		fileLocation = SystemConstants.STORAGE_LOCATION;
+
+		File file = new File(fileLocation);
+		if (!file.exists()) {
+			file.createNewFile();
+		}
+	}
+
+	public StorageManager getInstance() throws IOException {
+		if (storageManager == null) {
+			storageManager = new FileStorageManager();
+		}
+		return storageManager;
 	}
 
 	private CSVPrinter getFilePrinter() throws IOException {
 		FileWriter fileWriter = new FileWriter(fileLocation);
-		return new CSVPrinter(fileWriter, CSVFormat.DEFAULT);
+		return new CSVPrinter(fileWriter, CUSTOM_CSV_FORMAT);
 	}
 
 	@Override
-	public VersionedItem readRecord(String key) throws IOException {
+	public synchronized VersionedItem readRecord(String key) throws IOException {
 
 		FileReader fileReader = new FileReader(fileLocation);
-		Iterable<CSVRecord> records = CSVFormat.DEFAULT.parse(fileReader);
+		Iterable<CSVRecord> records = CUSTOM_CSV_FORMAT.parse(fileReader);
 
 		for (CSVRecord record : records) {
 			String fileKey = record.get(0);
@@ -54,10 +68,10 @@ public class FileStorageManager implements StorageManager {
 	}
 
 	@Override
-	public Map<String, VersionedItem> readRecords() throws IOException {
+	public synchronized Map<String, VersionedItem> readRecords() throws IOException {
 
 		FileReader fileReader = new FileReader(fileLocation);
-		Iterable<CSVRecord> records = CSVFormat.DEFAULT.parse(fileReader);
+		Iterable<CSVRecord> records = CUSTOM_CSV_FORMAT.parse(fileReader);
 
 		Map<String, VersionedItem> result = new HashMap<>();
 		for (CSVRecord record : records) {
@@ -69,7 +83,7 @@ public class FileStorageManager implements StorageManager {
 	}
 
 	@Override
-	public void appendRecord(String key, VersionedItem versionedItem) throws IOException {
+	public synchronized void appendRecord(String key, VersionedItem versionedItem) throws IOException {
 
 		Map<String, VersionedItem> records = readRecords();
 		CSVPrinter csvFilePrinter = getFilePrinter();
@@ -86,7 +100,7 @@ public class FileStorageManager implements StorageManager {
 	}
 
 	@Override
-	public void appendRecords(Map<String, VersionedItem> records) throws IOException {
+	public synchronized void appendRecords(Map<String, VersionedItem> records) throws IOException {
 		Map<String, VersionedItem> fileRecords = readRecords();
 		CSVPrinter csvFilePrinter = getFilePrinter();
 
@@ -121,7 +135,7 @@ public class FileStorageManager implements StorageManager {
 	}
 
 	@Override
-	public void writeRecords(Map<String, VersionedItem> records) throws IOException {
+	public synchronized void writeRecords(Map<String, VersionedItem> records) throws IOException {
 		CSVPrinter csvFilePrinter = getFilePrinter();
 		for (Map.Entry<String, VersionedItem> record : records.entrySet()) {
 			List<String> csvRecord = toCsvRecord(record.getKey(), record.getValue());
@@ -131,7 +145,7 @@ public class FileStorageManager implements StorageManager {
 	}
 
 	@Override
-	public void removeRecords(List<String> keys) throws IOException {
+	public synchronized void removeRecords(List<String> keys) throws IOException {
 		Map<String, VersionedItem> fileRecords = readRecords();
 		CSVPrinter csvFilePrinter = getFilePrinter();
 
@@ -142,6 +156,12 @@ public class FileStorageManager implements StorageManager {
 				csvFilePrinter.printRecord(toCsvRecord(fileRecord));
 			}
 		}
+		csvFilePrinter.close();
+	}
+
+	@Override
+	public synchronized void clearStorage() throws IOException {
+		CSVPrinter csvFilePrinter = getFilePrinter();
 		csvFilePrinter.close();
 	}
 }

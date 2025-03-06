@@ -20,4 +20,6 @@ public interface StorageManager {
 	void writeRecords(Map<String, VersionedItem> records) throws IOException;
 
 	void removeRecords(List<String> keys) throws IOException;
+
+	void clearStorage() throws IOException;
 }
