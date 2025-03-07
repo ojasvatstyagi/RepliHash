@@ -1,9 +1,9 @@
-package it.unitn.ds1.storage;
+package it.unitn.ds1.storage.exceptions;
 
 import org.jetbrains.annotations.NonNls;
 
 /**
- * Write records exception
+ * Exception thrown when a write fails
  */
 public class WriteException extends RuntimeException {
 

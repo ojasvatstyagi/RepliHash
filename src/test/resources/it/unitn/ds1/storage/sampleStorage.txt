@@ -1,0 +1,5 @@
+10 valueA 3
+12 valueB 3
+17 valueC 4
+13 valueD 2
+15 valueE 1

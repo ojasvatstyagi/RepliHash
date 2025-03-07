@@ -27,5 +27,5 @@ public class SystemConstants {
 	/**
 	 * File where persistent storage of a node is maintained
 	 */
-	public static final String STORAGE_LOCATION = "/tmp/nodeStorage.txt";
+	public static final String STORAGE_LOCATION = "/tmp";
 }

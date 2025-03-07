@@ -1,9 +1,11 @@
 package it.unitn.ds1.storage;
 
 import it.unitn.ds1.SystemConstants;
+import it.unitn.ds1.storage.exceptions.ReadException;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -16,30 +18,28 @@ import java.util.Map;
  */
 public class FileStorageManager implements StorageManager {
 
-	private static CSVFormat CUSTOM_CSV_FORMAT = CSVFormat.DEFAULT.withRecordSeparator(',');
+	// use space as record separator as requested from project guidelines
+	private static CSVFormat CUSTOM_CSV_FORMAT = CSVFormat.DEFAULT.withDelimiter(' ');
 
-	public static void createFile(String location) throws IOException {
-		File file = new File(location);
-		if (!file.exists()) {
-			boolean created = file.createNewFile();
-		}
-	}
-
-	private StorageManager storageManager;
+	private static StorageManager storageManager;
 	private String fileLocation;
 
-	private FileStorageManager() throws IOException {
-		fileLocation = SystemConstants.STORAGE_LOCATION;
+	private FileStorageManager(int nodeId) throws IOException {
+		fileLocation = SystemConstants.STORAGE_LOCATION + "/" + "nodeStorage-" + nodeId + ".txt";
 
+		// check if file exists. If no, create a new one.
 		File file = new File(fileLocation);
 		if (!file.exists()) {
-			file.createNewFile();
+			boolean created = file.createNewFile();
+			if (!created) {
+				throw new RuntimeException("Unable to create new file \"" + fileLocation + "\" for storage purposes.");
+			}
 		}
 	}
 
-	public StorageManager getInstance() throws IOException {
+	public static StorageManager getInstance(int nodeId) throws IOException {
 		if (storageManager == null) {
-			storageManager = new FileStorageManager();
+			storageManager = new FileStorageManager(nodeId);
 		}
 		return storageManager;
 	}
@@ -50,73 +50,153 @@ public class FileStorageManager implements StorageManager {
 	}
 
 	@Override
-	public synchronized VersionedItem readRecord(String key) throws IOException {
+	public VersionedItem readRecord(@NotNull String key) {
 
-		FileReader fileReader = new FileReader(fileLocation);
-		Iterable<CSVRecord> records = CUSTOM_CSV_FORMAT.parse(fileReader);
+		try {
+			FileReader fileReader = new FileReader(fileLocation);
+			Iterable<CSVRecord> records = CUSTOM_CSV_FORMAT.parse(fileReader);
 
-		for (CSVRecord record : records) {
-			String fileKey = record.get(0);
-			if (fileKey.equals(key)) {
-				fileReader.close();
-				return new VersionedItem(record.get(1), Integer.parseInt(record.get(2)));
+			for (CSVRecord record : records) {
+
+				validateRecord(record);
+
+				String fileKey = record.get(0);
+				if (fileKey.equals(key)) {
+					fileReader.close();
+					return new VersionedItem(record.get(1), Integer.parseInt(record.get(2)));
+				}
 			}
+			fileReader.close();
+
+		} catch (IOException | NumberFormatException e) {
+			throw new ReadException(e);
 		}
 
-		fileReader.close();
 		return null;
 	}
 
 	@Override
-	public synchronized Map<String, VersionedItem> readRecords() throws IOException {
-
-		FileReader fileReader = new FileReader(fileLocation);
-		Iterable<CSVRecord> records = CUSTOM_CSV_FORMAT.parse(fileReader);
+	public Map<String, VersionedItem> readRecords() {
 
 		Map<String, VersionedItem> result = new HashMap<>();
-		for (CSVRecord record : records) {
-			result.put(record.get(0), new VersionedItem(record.get(1), Integer.parseInt(record.get(2))));
+
+		try {
+			FileReader fileReader = new FileReader(fileLocation);
+			Iterable<CSVRecord> records = CUSTOM_CSV_FORMAT.parse(fileReader);
+
+			for (CSVRecord record : records) {
+				validateRecord(record);
+				result.put(record.get(0), new VersionedItem(record.get(1), Integer.parseInt(record.get(2))));
+			}
+
+			fileReader.close();
+		} catch (IOException | NumberFormatException e) {
+			throw new ReadException(e);
 		}
 
-		fileReader.close();
 		return result;
 	}
 
 	@Override
-	public synchronized void appendRecord(String key, VersionedItem versionedItem) throws IOException {
+	public void appendRecord(@NotNull String key, @NotNull VersionedItem versionedItem) {
 
-		Map<String, VersionedItem> records = readRecords();
-		CSVPrinter csvFilePrinter = getFilePrinter();
+		try {
+			Map<String, VersionedItem> records = readRecords();
+			CSVPrinter csvFilePrinter = getFilePrinter();
 
-		for (Map.Entry<String, VersionedItem> record : records.entrySet()) {
+			for (Map.Entry<String, VersionedItem> record : records.entrySet()) {
 
-			String fileKey = record.getKey();
-			if (!fileKey.equals(key)) {
-				csvFilePrinter.printRecord(toCsvRecord(record));
+				String fileKey = record.getKey();
+
+				if (!fileKey.equals(key)) { // don't copy the record that has to be appended
+					csvFilePrinter.printRecord(toCsvRecord(record));
+				}
 			}
+			// append new record
+			csvFilePrinter.printRecord(toCsvRecord(key, versionedItem));
+			csvFilePrinter.close();
+
+		} catch (IOException e) {
+			throw new WriteException(e);
 		}
-		csvFilePrinter.printRecord(toCsvRecord(key, versionedItem));
-		csvFilePrinter.close();
 	}
 
 	@Override
-	public synchronized void appendRecords(Map<String, VersionedItem> records) throws IOException {
-		Map<String, VersionedItem> fileRecords = readRecords();
-		CSVPrinter csvFilePrinter = getFilePrinter();
+	public void appendRecords(@NotNull Map<String, VersionedItem> records) {
 
-		for (Map.Entry<String, VersionedItem> fileRecord : fileRecords.entrySet()) {
+		try {
 
-			String fileKey = fileRecord.getKey();
-			if (!records.containsKey(fileKey)) {
-				csvFilePrinter.printRecord(toCsvRecord(fileRecord));
+			Map<String, VersionedItem> fileRecords = readRecords();
+			CSVPrinter csvFilePrinter = getFilePrinter();
+
+			for (Map.Entry<String, VersionedItem> fileRecord : fileRecords.entrySet()) {
+
+				String fileKey = fileRecord.getKey();
+				if (!records.containsKey(fileKey)) { // don't copy the records that has to be appended
+					csvFilePrinter.printRecord(toCsvRecord(fileRecord));
+				}
 			}
-		}
 
-		for (Map.Entry<String, VersionedItem> record : records.entrySet()) {
-			csvFilePrinter.printRecord(toCsvRecord(record));
+			// append new records
+			for (Map.Entry<String, VersionedItem> record : records.entrySet()) {
+				csvFilePrinter.printRecord(toCsvRecord(record));
+			}
+			csvFilePrinter.close();
+
+		} catch (IOException e) {
+			throw new WriteException(e);
 		}
+	}
+
+
+	@Override
+	public void writeRecords(@NotNull Map<String, VersionedItem> records) {
+
+		try {
+			CSVPrinter csvFilePrinter = getFilePrinter();
+			for (Map.Entry<String, VersionedItem> record : records.entrySet()) {
+				List<String> csvRecord = toCsvRecord(record.getKey(), record.getValue());
+				csvFilePrinter.printRecord(csvRecord);
+			}
+			csvFilePrinter.close();
+
+		} catch (IOException e) {
+			throw new WriteException(e);
+		}
+	}
+
+	@Override
+	public void removeRecords(@NotNull List<String> keys) {
+
+		try {
+
+			Map<String, VersionedItem> fileRecords = readRecords();
+			CSVPrinter csvFilePrinter = getFilePrinter();
+
+			for (Map.Entry<String, VersionedItem> fileRecord : fileRecords.entrySet()) {
+
+				String fileKey = fileRecord.getKey();
+				if (keys.indexOf(fileKey) == -1) {
+					csvFilePrinter.printRecord(toCsvRecord(fileRecord));
+				}
+			}
+			csvFilePrinter.close();
+
+		} catch (IOException e) {
+			throw new WriteException(e);
+		}
+	}
+
+	@Override
+	public void clearStorage() throws IOException {
+		CSVPrinter csvFilePrinter = getFilePrinter();
 		csvFilePrinter.close();
 	}
+
+
+	/* -----
+	 * Utils
+	 ----- */
 
 	private List<String> toCsvRecord(String key, VersionedItem versionedItem) {
 		List<String> csvRecord = new ArrayList<>();
@@ -134,34 +214,16 @@ public class FileStorageManager implements StorageManager {
 		return csvRecord;
 	}
 
-	@Override
-	public synchronized void writeRecords(Map<String, VersionedItem> records) throws IOException {
-		CSVPrinter csvFilePrinter = getFilePrinter();
-		for (Map.Entry<String, VersionedItem> record : records.entrySet()) {
-			List<String> csvRecord = toCsvRecord(record.getKey(), record.getValue());
-			csvFilePrinter.printRecord(csvRecord);
+	private void validateRecord(CSVRecord record) {
+
+		if (record.size() != 3) {
+			throw new ReadException("Read bad record. Key, value or version is missing for record \"" + record.toString() + "\".");
 		}
-		csvFilePrinter.close();
-	}
 
-	@Override
-	public synchronized void removeRecords(List<String> keys) throws IOException {
-		Map<String, VersionedItem> fileRecords = readRecords();
-		CSVPrinter csvFilePrinter = getFilePrinter();
-
-		for (Map.Entry<String, VersionedItem> fileRecord : fileRecords.entrySet()) {
-
-			String fileKey = fileRecord.getKey();
-			if (keys.indexOf(fileKey) == -1) {
-				csvFilePrinter.printRecord(toCsvRecord(fileRecord));
-			}
+		try {
+			Integer.parseInt(record.get(2));
+		} catch (NumberFormatException e) {
+			throw new ReadException("Read bad record. Version of record \"" + record.toString() + "\" is not a valid number.");
 		}
-		csvFilePrinter.close();
-	}
-
-	@Override
-	public synchronized void clearStorage() throws IOException {
-		CSVPrinter csvFilePrinter = getFilePrinter();
-		csvFilePrinter.close();
 	}
 }
