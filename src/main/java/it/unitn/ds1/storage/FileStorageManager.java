@@ -50,7 +50,7 @@ public class FileStorageManager implements StorageManager {
 	}
 
 	@Override
-	public VersionedItem readRecord(@NotNull String key) {
+	public VersionedItem readRecord(int key) {
 
 		try {
 			FileReader fileReader = new FileReader(fileLocation);
@@ -60,8 +60,8 @@ public class FileStorageManager implements StorageManager {
 
 				validateRecord(record);
 
-				String fileKey = record.get(0);
-				if (fileKey.equals(key)) {
+				int fileKey = Integer.parseInt(record.get(0));
+				if (fileKey == key) {
 					fileReader.close();
 					return new VersionedItem(record.get(1), Integer.parseInt(record.get(2)));
 				}
@@ -76,9 +76,9 @@ public class FileStorageManager implements StorageManager {
 	}
 
 	@Override
-	public Map<String, VersionedItem> readRecords() {
+	public Map<Integer, VersionedItem> readRecords() {
 
-		Map<String, VersionedItem> result = new HashMap<>();
+		Map<Integer, VersionedItem> result = new HashMap<>();
 
 		try {
 			FileReader fileReader = new FileReader(fileLocation);
@@ -86,7 +86,7 @@ public class FileStorageManager implements StorageManager {
 
 			for (CSVRecord record : records) {
 				validateRecord(record);
-				result.put(record.get(0), new VersionedItem(record.get(1), Integer.parseInt(record.get(2))));
+				result.put(Integer.parseInt(record.get(0)), new VersionedItem(record.get(1), Integer.parseInt(record.get(2))));
 			}
 
 			fileReader.close();
@@ -98,17 +98,17 @@ public class FileStorageManager implements StorageManager {
 	}
 
 	@Override
-	public void appendRecord(@NotNull String key, @NotNull VersionedItem versionedItem) {
+	public void appendRecord(int key, @NotNull VersionedItem versionedItem) {
 
 		try {
-			Map<String, VersionedItem> records = readRecords();
+			Map<Integer, VersionedItem> records = readRecords();
 			CSVPrinter csvFilePrinter = getFilePrinter();
 
-			for (Map.Entry<String, VersionedItem> record : records.entrySet()) {
+			for (Map.Entry<Integer, VersionedItem> record : records.entrySet()) {
 
-				String fileKey = record.getKey();
+				Integer fileKey = record.getKey();
 
-				if (!fileKey.equals(key)) { // don't copy the record that has to be appended
+				if (!(fileKey == key)) { // don't copy the record that has to be appended
 					csvFilePrinter.printRecord(toCsvRecord(record));
 				}
 			}
@@ -122,23 +122,23 @@ public class FileStorageManager implements StorageManager {
 	}
 
 	@Override
-	public void appendRecords(@NotNull Map<String, VersionedItem> records) {
+	public void appendRecords(@NotNull Map<Integer, VersionedItem> records) {
 
 		try {
 
-			Map<String, VersionedItem> fileRecords = readRecords();
+			Map<Integer, VersionedItem> fileRecords = readRecords();
 			CSVPrinter csvFilePrinter = getFilePrinter();
 
-			for (Map.Entry<String, VersionedItem> fileRecord : fileRecords.entrySet()) {
+			for (Map.Entry<Integer, VersionedItem> fileRecord : fileRecords.entrySet()) {
 
-				String fileKey = fileRecord.getKey();
+				Integer fileKey = fileRecord.getKey();
 				if (!records.containsKey(fileKey)) { // don't copy the records that has to be appended
 					csvFilePrinter.printRecord(toCsvRecord(fileRecord));
 				}
 			}
 
 			// append new records
-			for (Map.Entry<String, VersionedItem> record : records.entrySet()) {
+			for (Map.Entry<Integer, VersionedItem> record : records.entrySet()) {
 				csvFilePrinter.printRecord(toCsvRecord(record));
 			}
 			csvFilePrinter.close();
@@ -150,11 +150,11 @@ public class FileStorageManager implements StorageManager {
 
 
 	@Override
-	public void writeRecords(@NotNull Map<String, VersionedItem> records) {
+	public void writeRecords(@NotNull Map<Integer, VersionedItem> records) {
 
 		try {
 			CSVPrinter csvFilePrinter = getFilePrinter();
-			for (Map.Entry<String, VersionedItem> record : records.entrySet()) {
+			for (Map.Entry<Integer, VersionedItem> record : records.entrySet()) {
 				List<String> csvRecord = toCsvRecord(record.getKey(), record.getValue());
 				csvFilePrinter.printRecord(csvRecord);
 			}
@@ -166,16 +166,16 @@ public class FileStorageManager implements StorageManager {
 	}
 
 	@Override
-	public void removeRecords(@NotNull List<String> keys) {
+	public void removeRecords(@NotNull List<Integer> keys) {
 
 		try {
 
-			Map<String, VersionedItem> fileRecords = readRecords();
+			Map<Integer, VersionedItem> fileRecords = readRecords();
 			CSVPrinter csvFilePrinter = getFilePrinter();
 
-			for (Map.Entry<String, VersionedItem> fileRecord : fileRecords.entrySet()) {
+			for (Map.Entry<Integer, VersionedItem> fileRecord : fileRecords.entrySet()) {
 
-				String fileKey = fileRecord.getKey();
+				Integer fileKey = fileRecord.getKey();
 				if (keys.indexOf(fileKey) == -1) {
 					csvFilePrinter.printRecord(toCsvRecord(fileRecord));
 				}
@@ -198,26 +198,32 @@ public class FileStorageManager implements StorageManager {
 	 * Utils
 	 ----- */
 
-	private List<String> toCsvRecord(String key, VersionedItem versionedItem) {
+	private List<String> toCsvRecord(int key, @NotNull VersionedItem versionedItem) {
 		List<String> csvRecord = new ArrayList<>();
-		csvRecord.add(key);
+		csvRecord.add(key + "");
 		csvRecord.add(versionedItem.getValue());
 		csvRecord.add(versionedItem.getVersion() + "");
 		return csvRecord;
 	}
 
-	private List<String> toCsvRecord(Map.Entry<String, VersionedItem> record) {
+	private List<String> toCsvRecord(@NotNull Map.Entry<Integer, VersionedItem> record) {
 		List<String> csvRecord = new ArrayList<>();
-		csvRecord.add(record.getKey());
+		csvRecord.add(record.getKey() + "");
 		csvRecord.add(record.getValue().getValue());
 		csvRecord.add(record.getValue().getVersion() + "");
 		return csvRecord;
 	}
 
-	private void validateRecord(CSVRecord record) {
+	private void validateRecord(@NotNull CSVRecord record) {
 
 		if (record.size() != 3) {
 			throw new ReadException("Read bad record. Key, value or version is missing for record \"" + record.toString() + "\".");
+		}
+
+		try {
+			Integer.parseInt(record.get(0));
+		} catch (NumberFormatException e) {
+			throw new ReadException("Read bad record. Key of record \"" + record.toString() + "\" is not a valid number.");
 		}
 
 		try {

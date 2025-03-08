@@ -57,7 +57,7 @@ public class FileStorageManagerTest {
 
 		StorageManager storageManager = FileStorageManager.getInstance(NODE_ID);
 
-		Map<String, VersionedItem> records = storageManager.readRecords();
+		Map<Integer, VersionedItem> records = storageManager.readRecords();
 		assertEquals(5, records.size());
 	}
 
@@ -66,7 +66,7 @@ public class FileStorageManagerTest {
 
 		StorageManager storageManager = FileStorageManager.getInstance(NODE_ID);
 
-		VersionedItem record = storageManager.readRecord("17");
+		VersionedItem record = storageManager.readRecord(17);
 		assertNotNull(record);
 		assertEquals("valueC", record.getValue());
 		assertEquals(4, record.getVersion());
@@ -76,11 +76,11 @@ public class FileStorageManagerTest {
 	public void appendNewRecord() throws IOException {
 
 		StorageManager storageManager = FileStorageManager.getInstance(NODE_ID);
-		storageManager.appendRecord("20", new VersionedItem("value20", 1));
+		storageManager.appendRecord(20, new VersionedItem("value20", 1));
 
 		assertEquals(6, storageManager.readRecords().size());
 
-		VersionedItem record = storageManager.readRecord("20");
+		VersionedItem record = storageManager.readRecord(20);
 		assertNotNull(record);
 		assertEquals("value20", record.getValue());
 		assertEquals(1, record.getVersion());
@@ -90,11 +90,11 @@ public class FileStorageManagerTest {
 	public void appendExistentRecord() throws IOException {
 
 		StorageManager storageManager = FileStorageManager.getInstance(NODE_ID);
-		storageManager.appendRecord("12", new VersionedItem("newValue", 16));
+		storageManager.appendRecord(12, new VersionedItem("newValue", 16));
 
 		assertEquals(5, storageManager.readRecords().size());
 
-		VersionedItem record = storageManager.readRecord("12");
+		VersionedItem record = storageManager.readRecord(12);
 		assertNotNull(record);
 		assertEquals("newValue", record.getValue());
 		assertEquals(16, record.getVersion());
@@ -104,9 +104,9 @@ public class FileStorageManagerTest {
 	public void writeRecords() throws IOException {
 		StorageManager storageManager = FileStorageManager.getInstance(NODE_ID);
 
-		Map<String, VersionedItem> records = new HashMap<>();
-		records.put("100", new VersionedItem("val100", 1));
-		records.put("200", new VersionedItem("val200", 1));
+		Map<Integer, VersionedItem> records = new HashMap<>();
+		records.put(100, new VersionedItem("val100", 1));
+		records.put(200, new VersionedItem("val200", 1));
 
 		storageManager.writeRecords(records);
 
@@ -117,14 +117,14 @@ public class FileStorageManagerTest {
 	public void removeRecords() throws IOException {
 		StorageManager storageManager = FileStorageManager.getInstance(NODE_ID);
 
-		List<String> keys = new ArrayList<>();
-		keys.add("13");
-		keys.add("17");
+		List<Integer> keys = new ArrayList<>();
+		keys.add(13);
+		keys.add(17);
 
 		storageManager.removeRecords(keys);
 		assertEquals(3, storageManager.readRecords().size());
-		assertNull(storageManager.readRecord("13"));
-		assertNull(storageManager.readRecord("17"));
+		assertNull(storageManager.readRecord(13));
+		assertNull(storageManager.readRecord(17));
 	}
 
 

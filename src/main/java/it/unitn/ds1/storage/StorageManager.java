@@ -19,7 +19,7 @@ public interface StorageManager {
 	 * @return the record or null if it is not found
 	 * @throws ReadException thrown if any error during reading occur (IOException, bad file format, ...)
 	 */
-	VersionedItem readRecord(@NotNull String key) throws ReadException;
+	VersionedItem readRecord(int key) throws ReadException;
 
 	/**
 	 * Read all the records in storage
@@ -27,7 +27,7 @@ public interface StorageManager {
 	 * @return a map <key, record> containing all read records
 	 * @throws ReadException thrown if any error during reading occur (IOException, bad file format, ...)
 	 */
-	Map<String, VersionedItem> readRecords() throws ReadException;
+	Map<Integer, VersionedItem> readRecords() throws ReadException;
 
 	/**
 	 * Add a record into the storage.
@@ -38,7 +38,7 @@ public interface StorageManager {
 	 * @throws ReadException  thrown if any error during reading occur (IOException, bad file format, ...)
 	 * @throws WriteException thrown if any error during writing occur
 	 */
-	void appendRecord(@NotNull String key, @NotNull VersionedItem versionedItem) throws ReadException, WriteException;
+	void appendRecord(int key, @NotNull VersionedItem versionedItem) throws ReadException, WriteException;
 
 	/**
 	 * Add records into the storage.
@@ -48,7 +48,7 @@ public interface StorageManager {
 	 * @throws ReadException  thrown if any error during reading occur (IOException, bad file format, ...)
 	 * @throws WriteException thrown if any error during writing occur
 	 */
-	void appendRecords(@NotNull Map<String, VersionedItem> records) throws ReadException, WriteException;
+	void appendRecords(@NotNull Map<Integer, VersionedItem> records) throws ReadException, WriteException;
 
 	/**
 	 * Write provided records into the storage.
@@ -57,7 +57,7 @@ public interface StorageManager {
 	 * @param records records to write
 	 * @throws WriteException thrown if any error during writing occur
 	 */
-	void writeRecords(@NotNull Map<String, VersionedItem> records) throws WriteException;
+	void writeRecords(@NotNull Map<Integer, VersionedItem> records) throws WriteException;
 
 	/**
 	 * Remove provided records from the storage, if they exist.
@@ -65,7 +65,7 @@ public interface StorageManager {
 	 * @param keys key of records to remove
 	 * @throws WriteException thrown if any error during writing occur
 	 */
-	void removeRecords(@NotNull List<String> keys) throws WriteException;
+	void removeRecords(@NotNull List<Integer> keys) throws WriteException;
 
 	/**
 	 * Remove all records from storage
