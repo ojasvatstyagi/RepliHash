@@ -8,14 +8,14 @@ import akka.event.Logging;
 import akka.japi.Creator;
 import it.unitn.ds1.SystemConstants;
 import it.unitn.ds1.messages.*;
-import it.unitn.ds1.messages.client.ClientLeaveRequest;
-import it.unitn.ds1.messages.client.ClientLeaveResponse;
-import it.unitn.ds1.messages.client.ClientReadRequest;
-import it.unitn.ds1.messages.client.ClientReadResponse;
+import it.unitn.ds1.messages.client.*;
+import it.unitn.ds1.storage.FileStorageManager;
+import it.unitn.ds1.storage.StorageManager;
 import it.unitn.ds1.storage.VersionedItem;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,6 +30,9 @@ public class NodeActor extends UntypedActor {
 
 	// Unique identifier for this node
 	private final int id;
+
+	// Storage Manager that helps read and write records into persistent storage.
+	private final StorageManager storageManager;
 
 	// Command used to launch the node.
 	// This is used for a convenient initialization of the actor.
@@ -54,9 +57,13 @@ public class NodeActor extends UntypedActor {
 	// Maps the requestID to the request status
 	private final Map<Integer, ReadRequestStatus> readRequests;
 
-	// Unique incremental identifier for each read request
+	// Read requests for a future write request the node is responsible for
+	// Maps the requestID to the request status
+	private final Map<Integer, WriteRequestStatus> readForWriteRequests;
+
+	// Unique incremental identifier for each client request
 	// The counter is to be considered unique only inside the same node
-	private int readsCount;
+	private int requestCount;
 
 	// Internal variable used to store the current state of the node.
 	private State state;
@@ -69,10 +76,13 @@ public class NodeActor extends UntypedActor {
 	 * @param remote         Remote address of another actor to contact to leave the system.
 	 *                       This parameter is not required for the bootstrap node.
 	 */
-	private NodeActor(int id, @NotNull StartupCommand startupCommand, @Nullable String remote) {
+	private NodeActor(int id, @NotNull StartupCommand startupCommand, @Nullable String remote) throws IOException {
 		this.id = id;
 		this.startupCommand = startupCommand;
 		this.remote = remote;
+
+		// initialize storage manager
+		this.storageManager = FileStorageManager.getInstance(id);
 
 		// add myself to the map of nodes
 		this.nodes = new HashMap<>();
@@ -83,7 +93,8 @@ public class NodeActor extends UntypedActor {
 
 		// initialize other variables
 		this.readRequests = new HashMap<>();
-		this.readsCount = 0;
+		this.readForWriteRequests = new HashMap<>();
+		this.requestCount = 0;
 
 		// setup logger context
 		this.logger = Logging.getLogger(this);
@@ -181,7 +192,7 @@ public class NodeActor extends UntypedActor {
 	 * system, we send a message to a remote node already in the system.
 	 */
 	@Override
-	public void preStart() {
+	public void preStart() throws IOException {
 
 		// depending on the initialization, decide what to do
 		switch (startupCommand) {
@@ -189,12 +200,18 @@ public class NodeActor extends UntypedActor {
 			// nothing needed in this case
 			case BOOTSTRAP:
 				this.state = State.READY;
+				// initialize storage
+				storageManager.clearStorage();
+
 				logger.info("preStart(): do nothing, move to {}", state);
 				break;
 
 			// asks to the node provided from the command line to join the system
 			case JOIN:
 				this.state = State.JOINING_WAITING_NODES;
+				// initialize storage
+				storageManager.clearStorage();
+
 				logger.info("preStart(): move to {}, ask to join to {}", state, remote);
 				getContext().actorSelection(remote).tell(new JoinRequestMessage(id), getSelf());
 				break;
@@ -202,6 +219,7 @@ public class NodeActor extends UntypedActor {
 			// asks to the node provided from the command line the nodes in the system, needed for the recovery
 			case RECOVER:
 				this.state = State.RECOVERING_WAITING_NODES;
+
 				logger.info("preStart(): move to {}, ask nodes to {}", state, remote);
 				getContext().actorSelection(remote).tell(new JoinRequestMessage(id), getSelf());
 				break;
@@ -223,8 +241,12 @@ public class NodeActor extends UntypedActor {
 			onLeaveRequest();
 		} else if (message instanceof ClientReadRequest) {
 			onClientReadRequest((ClientReadRequest) message);
+		} else if (message instanceof ClientUpdateRequest) {
+			onClientUpdateRequest((ClientUpdateRequest) message);
 		} else if (message instanceof ReadRequest) {
 			onReadRequest((ReadRequest) message);
+		} else if (message instanceof WriteRequest) {
+			onWriteRequest((WriteRequest) message);
 		} else if (message instanceof ReadResponse) {
 			onReadResponse((ReadResponse) message);
 		} else if (message instanceof DataMessage) {
@@ -300,8 +322,14 @@ public class NodeActor extends UntypedActor {
 
 			case RECOVERING_WAITING_NODES: {
 
-				// TODO: load data items from file
-				// remove the old ones
+				// load records from storage
+				Map<Integer, VersionedItem> records = storageManager.readRecords();
+
+				// TODO remove unwanted records from 'records' variable
+
+				// update storage and cache
+				storageManager.writeRecords(records);
+				cache.putAll(records);
 
 				// TODO: no need to announce me to the system... they should know me already
 
@@ -329,13 +357,40 @@ public class NodeActor extends UntypedActor {
 		} else {
 
 			// store the read request to be able to process the responses
-			readsCount++;
-			readRequests.put(readsCount, new ReadRequestStatus(key, getSender(), SystemConstants.READ_QUORUM));
+			requestCount++;
+			readRequests.put(requestCount, new ReadRequestStatus(key, getSender(), SystemConstants.READ_QUORUM));
 
 			// ask the responsible nodes for the key
 			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, SystemConstants.REPLICATION);
 			logger.info("Client request for key {}. Asking nodes {}", key, responsible);
-			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, readsCount, key), getSelf()));
+			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
+
+			// TODO: set timeout to cleanup old requests
+		}
+	}
+
+	private void onClientUpdateRequest(@NotNull ClientUpdateRequest message) {
+
+		// extract the key to update
+		final int key = message.getKey();
+
+		// get the nodes responsible for that key
+		if (SystemConstants.REPLICATION > nodes.size()) {
+			logger.warning("Client request to update key {}... but there are not enough nodes in the system: replication nodes={}, nodes={}",
+				key, SystemConstants.REPLICATION, nodes.size());
+
+			// TODO...
+
+		} else {
+
+			// store the update request to be able to process the responses
+			requestCount++;
+			readForWriteRequests.put(requestCount, new WriteRequestStatus(key, message.getValue(), getSender()));
+
+			// before update key, ask the responsible nodes for the key
+			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, SystemConstants.REPLICATION);
+			logger.info("Client request to update key {}. Asking nodes {}", key, responsible);
+			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
 
 			// TODO: set timeout to cleanup old requests
 		}
@@ -351,6 +406,18 @@ public class NodeActor extends UntypedActor {
 		// read the value from the data-store and send it back
 		final VersionedItem item = read(key);
 		reply(new ReadResponse(id, message.getRequestID(), key, item));
+	}
+
+
+	private void onWriteRequest(WriteRequest message) {
+
+		// extract the key to search
+		final int key = message.getKey();
+
+		// TODO: assertion that I am responsible?
+
+		// write the new record in the data-store
+		write(key, message.getVersionedItem());
 	}
 
 	private void onReadResponse(ReadResponse message) {
@@ -369,19 +436,52 @@ public class NodeActor extends UntypedActor {
 		// valid -> add it to the voting
 		else {
 			logger.info("Got a valid vote for read request [{}] from node [{}]", requestID, message.getSenderID());
-			final ReadRequestStatus status = readRequests.get(requestID);
-			status.addVote(message.getValue());
+			final ReadRequestStatus readStatus = readRequests.get(requestID);
 
-			// check quorum
-			if (status.isQuorumReached()) {
-				logger.info("Quorum reached for read request [{}] - result is \"{}\"", requestID, status.getLatestValue());
-				status.getSender().tell(new ClientReadResponse(id, status.getKey(), status.getLatestValue()), getSelf());
+			if (readStatus != null) { // request is related to a ClientRead request
 
-				// cleanup memory
-				this.readRequests.remove(requestID);
+				readStatus.addVote(message.getValue());
 
-			} else {
-				logger.info("Quorum NOT yet reached for read request [{}] - waiting...", requestID);
+				// check quorum
+				if (readStatus.isQuorumReached()) {
+					logger.info("Quorum reached for read request [{}] - result is \"{}\"", requestID, readStatus.getLatestValue());
+					readStatus.getSender().tell(new ClientReadResponse(id, readStatus.getKey(), readStatus.getLatestValue()), getSelf());
+
+					// cleanup memory
+					this.readRequests.remove(requestID);
+
+				} else {
+					logger.info("Quorum NOT yet reached for read request [{}] - waiting...", requestID);
+				}
+
+			} else { // request is related to a ClientUpdate request
+
+				final WriteRequestStatus writeStatus = readForWriteRequests.get(requestID);
+
+				writeStatus.addVote(message.getValue());
+
+				// check quorum
+				if (writeStatus.isQuorumReached()) {
+					logger.info("Quorum reached for write request [{}] - updated record is \"{}\"", requestID, writeStatus.getUpdatedRecord());
+
+					// calculate new version
+					final VersionedItem updatedRecord = writeStatus.getUpdatedRecord();
+
+					// send successful response to client with updated record
+					// TODO check if this is the right way to send an object
+					writeStatus.getSender().tell(new ClientUpdateResponse(id, writeStatus.getKey(), updatedRecord), getSelf());
+
+					// send write request to interested nodes (nodes responsible for that key)
+					final Set<Integer> responsible = responsibleForKey(nodes.keySet(), writeStatus.getKey(), SystemConstants.REPLICATION);
+					// TODO check if this is the right way to send an object
+					responsible.forEach(node -> nodes.get(node).tell(new WriteRequest(id, requestCount, writeStatus.getKey(), updatedRecord), getSelf()));
+
+					// cleanup memory
+					this.readForWriteRequests.remove(requestID);
+
+				} else {
+					logger.info("Quorum NOT yet reached for write request [{}] - waiting...", requestID);
+				}
 			}
 		}
 	}
@@ -464,7 +564,7 @@ public class NodeActor extends UntypedActor {
 	 */
 	private void write(int key, VersionedItem item) {
 
-		// TODO: write to disk
+		storageManager.appendRecord(key, item);
 
 		// write-though cache
 		cache.put(key, item);

@@ -2,6 +2,7 @@ package it.unitn.ds1;
 
 import it.unitn.ds1.client.LeaveCommand;
 import it.unitn.ds1.client.ReadCommand;
+import it.unitn.ds1.client.UpdateCommand;
 import org.apache.commons.validator.routines.InetAddressValidator;
 
 
@@ -122,8 +123,19 @@ public class Client {
 				break;
 			}
 
-			// TODO
 			case "write": {
+
+				// validate number of arguments
+				if (args.length != 5) {
+					printHelpAndExit();
+				}
+
+				// extract the key
+				final int key = parseIntOrExit(args[3]);
+				final String value = args[4];
+
+				// ask record update
+				update(ip, port, key, value);
 				break;
 			}
 
@@ -141,4 +153,9 @@ public class Client {
 	private static void read(String ip, String port, int key) {
 		new ReadCommand(ip, port, key).execute();
 	}
+
+	private static void update(String ip, String port, int key, String value) {
+		new UpdateCommand(ip, port, key, value).execute();
+	}
+
 }
