@@ -30,7 +30,7 @@ public final class UpdateCommand extends BaseCommand {
 	protected void command(ActorSelection actor, LoggingAdapter logger) throws Exception {
 
 		// log the request
-		logger.info("Request update of key {}...", key);
+		logger.info("Request update of key {} with value \"{}\"...", key, value);
 
 		// send the command to the actor
 		final Timeout timeout = new Timeout(5, TimeUnit.SECONDS);

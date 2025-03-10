@@ -426,7 +426,7 @@ public class NodeActor extends UntypedActor {
 
 		// check that the request is still valid
 		final int requestID = message.getRequestID();
-		final boolean valid = readRequests.containsKey(message.getRequestID());
+		final boolean valid = readRequests.containsKey(message.getRequestID()) || readForWriteRequests.containsKey(message.getRequestID());
 
 		// not valid -> ignore the message
 		if (!valid) {

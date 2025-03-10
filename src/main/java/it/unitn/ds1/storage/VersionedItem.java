@@ -1,10 +1,12 @@
 package it.unitn.ds1.storage;
 
+import java.io.Serializable;
+
 /**
  * Represent an item saved in the data store.
  * Each item has a value and a version.
  */
-public class VersionedItem {
+public class VersionedItem implements Serializable {
 
 	private final String value;
 	private final int version;
@@ -21,5 +23,13 @@ public class VersionedItem {
 
 	public int getVersion() {
 		return version;
+	}
+
+	@Override
+	public String toString() {
+		return "VersionedItem{" +
+			"value='" + value + '\'' +
+			", version=" + version +
+			'}';
 	}
 }

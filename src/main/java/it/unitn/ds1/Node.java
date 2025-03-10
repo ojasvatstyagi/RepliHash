@@ -32,8 +32,8 @@ public class Node {
 		"\n" +
 		"Commands:\n" +
 		"   bootstrap  Instruct the Node to bootstrap a new system (does NOT require ip and port)\n" +
-		"   leave       Instruct the Node to leave the system (for the first time)\n" +
-		"   recover    Instruct the Node to do recovery and leave again the system after a crash\n" +
+		"   join       Instruct the Node to join the system (for the first time)\n" +
+		"   recover    Instruct the Node to do recovery and join again the system after a crash\n" +
 		"\n" +
 		"Arguments:\n" +
 		"   ip         The IP of a remote Node already in the system\n" +
@@ -95,7 +95,7 @@ public class Node {
 				break;
 			}
 
-			// launch this node and ask it to leave an existing system
+			// launch this node and ask it to join an existing system
 			case "join": {
 
 				// validate number of arguments
@@ -103,7 +103,7 @@ public class Node {
 					printHelpAndExit();
 				}
 
-				// extract ip and port of the node to contact to leave the system
+				// extract ip and port of the node to contact to join the system
 				final String ip = args[1];
 				final String port = args[2];
 				if (!validateIPAndPort(ip, port)) {
@@ -116,7 +116,7 @@ public class Node {
 				break;
 			}
 
-			// launch this node and ask it to perform recovery and leave again the system
+			// launch this node and ask it to perform recovery and join again the system
 			case "recover": {
 
 				// validate number of arguments
@@ -124,7 +124,7 @@ public class Node {
 					printHelpAndExit();
 				}
 
-				// extract ip and port of the node to contact to leave the system
+				// extract ip and port of the node to contact to join the system
 				final String ip = args[1];
 				final String port = args[2];
 				if (!validateIPAndPort(ip, port)) {
@@ -161,7 +161,7 @@ public class Node {
 	}
 
 	/**
-	 * Launch a new Node to leave an existing system for the first time.
+	 * Launch a new Node to join an existing system for the first time.
 	 *
 	 * @param ip   IP of a remote Node in the system.
 	 * @param port Port of a remote Node in the system.
@@ -174,7 +174,7 @@ public class Node {
 		// initialize Akka
 		final ActorSystem system = ActorSystem.create(SystemConstants.SYSTEM_NAME, config);
 
-		// create a NodeActor of type "leave" and add it to the system
+		// create a NodeActor of type "join" and add it to the system
 		final int id = config.getInt(CONFIG_NODE_ID);
 		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
 			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
@@ -182,7 +182,7 @@ public class Node {
 	}
 
 	/**
-	 * Launch a crashed Node to recover and leave back the system.
+	 * Launch a crashed Node to recover and join back the system.
 	 *
 	 * @param ip   IP of a remote Node in the system.
 	 * @param port Port of a remote Node in the system.
@@ -195,7 +195,7 @@ public class Node {
 		// initialize Akka
 		final ActorSystem system = ActorSystem.create(SystemConstants.SYSTEM_NAME, config);
 
-		// create a NodeActor of type "leave" and add it to the system
+		// create a NodeActor of type "join" and add it to the system
 		final int id = config.getInt(CONFIG_NODE_ID);
 		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
 			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
