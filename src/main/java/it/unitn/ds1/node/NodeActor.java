@@ -59,7 +59,7 @@ public class NodeActor extends UntypedActor {
 
 	// Read requests for a future write request the node is responsible for
 	// Maps the requestID to the request status
-	private final Map<Integer, WriteRequestStatus> readForWriteRequests;
+	private final Map<Integer, WriteRequestStatus> writeRequests;
 
 	// Unique incremental identifier for each client request
 	// The counter is to be considered unique only inside the same node
@@ -93,7 +93,7 @@ public class NodeActor extends UntypedActor {
 
 		// initialize other variables
 		this.readRequests = new HashMap<>();
-		this.readForWriteRequests = new HashMap<>();
+		this.writeRequests = new HashMap<>();
 		this.requestCount = 0;
 
 		// setup logger context
@@ -385,7 +385,7 @@ public class NodeActor extends UntypedActor {
 
 			// store the update request to be able to process the responses
 			requestCount++;
-			readForWriteRequests.put(requestCount, new WriteRequestStatus(key, message.getValue(), getSender()));
+			writeRequests.put(requestCount, new WriteRequestStatus(key, message.getValue(), getSender()));
 
 			// before update key, ask the responsible nodes for the key
 			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, SystemConstants.REPLICATION);
@@ -426,7 +426,7 @@ public class NodeActor extends UntypedActor {
 
 		// check that the request is still valid
 		final int requestID = message.getRequestID();
-		final boolean valid = readRequests.containsKey(message.getRequestID()) || readForWriteRequests.containsKey(message.getRequestID());
+		final boolean valid = readRequests.containsKey(message.getRequestID()) || writeRequests.containsKey(message.getRequestID());
 
 		// not valid -> ignore the message
 		if (!valid) {
@@ -456,7 +456,7 @@ public class NodeActor extends UntypedActor {
 
 			} else { // request is related to a ClientUpdate request
 
-				final WriteRequestStatus writeStatus = readForWriteRequests.get(requestID);
+				final WriteRequestStatus writeStatus = writeRequests.get(requestID);
 
 				writeStatus.addVote(message.getValue());
 
@@ -477,7 +477,7 @@ public class NodeActor extends UntypedActor {
 					responsible.forEach(node -> nodes.get(node).tell(new WriteRequest(id, requestCount, writeStatus.getKey(), updatedRecord), getSelf()));
 
 					// cleanup memory
-					this.readForWriteRequests.remove(requestID);
+					this.writeRequests.remove(requestID);
 
 				} else {
 					logger.info("Quorum NOT yet reached for write request [{}] - waiting...", requestID);

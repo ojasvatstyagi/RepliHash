@@ -8,7 +8,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 /**
- * This object is used to collect the responses of some read.
+ * This object is used to collect the responses of some write request.
  */
 @SuppressWarnings("WeakerAccess")
 public final class WriteRequestStatus {
@@ -16,6 +16,8 @@ public final class WriteRequestStatus {
 	// internal variables
 	private final int key;
 	private final String newValue;
+	// replies to "read requests"
+	// used to collect records to decide new record's version before performing the write
 	private final List<VersionedItem> replies;
 	private final ActorRef sender;
 	private final int quorum;
@@ -53,7 +55,7 @@ public final class WriteRequestStatus {
 		}
 
 		// calculate new version
-		int lastVersion = 0; // TODO is it right?
+		int lastVersion = 0;
 		for (VersionedItem record : this.replies) {
 			lastVersion = (record.getVersion() > lastVersion) ? (record.getVersion()) : (lastVersion);
 		}
