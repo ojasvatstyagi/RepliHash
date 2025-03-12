@@ -276,10 +276,10 @@ public class NodeActor extends UntypedActor {
 
 		logger.info("Node [{}] asks my data", message.getSenderID());
 
-		// TODO: extract the data
+		final Map<Integer, VersionedItem> records = storageManager.readRecords();
 
 		// send back the data
-		reply(new DataMessage(id));
+		reply(new DataMessage(id, records));
 	}
 
 	private void onLeaveRequest() {
@@ -294,6 +294,7 @@ public class NodeActor extends UntypedActor {
 		reply(new ClientLeaveResponse(id));
 
 		// TODO: cancel the storage?
+		// storageManager.deleteStorage();
 
 		// shutdown
 		getContext().system().terminate();
@@ -418,6 +419,8 @@ public class NodeActor extends UntypedActor {
 
 		// write the new record in the data-store
 		write(key, message.getVersionedItem());
+
+		// TODO: answer to sender? Project guidelines don't talk about it
 	}
 
 	private void onReadResponse(ReadResponse message) {
@@ -490,7 +493,10 @@ public class NodeActor extends UntypedActor {
 	private void onData(@NotNull DataMessage message) {
 		assert this.state == State.JOINING_WAITING_DATA;
 
-		// TODO: store data
+		// TODO: store data --> all data?
+		storageManager.appendRecords(message.getRecords());
+		cache.putAll(message.getRecords());
+
 
 		logger.info("Node [{}] sends the data it is responsible for. Sending Join msg...", message.getSenderID());
 

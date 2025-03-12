@@ -24,7 +24,9 @@ public class ReadResponse extends BaseMessage {
 		this.item = item;
 	}
 
-	// TODO: doc
+	/**
+	 * @return The id of the request. Id is generated from node who starts the request.
+	 */
 	public int getRequestID() {
 		return requestID;
 	}
@@ -43,7 +45,9 @@ public class ReadResponse extends BaseMessage {
 		return item != null;
 	}
 
-	// TODO: doc
+	/**
+	 * @return value and version associated with the key contained in this response.
+	 */
 	@Nullable
 	public VersionedItem getValue() {
 		return item;

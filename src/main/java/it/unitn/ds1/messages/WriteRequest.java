@@ -21,7 +21,9 @@ public class WriteRequest extends BaseMessage {
 		this.versionedItem = versionedItem;
 	}
 
-	// TODO: doc
+	/**
+	 * @return The id of the request. Id is generated from node who starts the request.
+	 */
 	public int getRequestID() {
 		return requestID;
 	}

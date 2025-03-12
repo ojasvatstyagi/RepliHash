@@ -68,9 +68,19 @@ public interface StorageManager {
 	void removeRecords(@NotNull List<Integer> keys) throws WriteException;
 
 	/**
-	 * Remove all records from storage
+	 * Remove all records from storage;
 	 *
 	 * @throws WriteException thrown if any error during writing occur
 	 */
 	void clearStorage() throws WriteException, IOException;
+
+	/**
+	 * Create the storage if not exists;
+	 */
+	void createStorage() throws IOException;
+
+	/**
+	 * Delete the persistent storage;
+	 */
+	void deleteStorage();
 }

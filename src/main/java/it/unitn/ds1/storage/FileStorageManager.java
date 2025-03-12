@@ -193,6 +193,29 @@ public class FileStorageManager implements StorageManager {
 		csvFilePrinter.close();
 	}
 
+	@Override
+	public void createStorage() throws IOException {
+		File file = new File(fileLocation);
+		if (!file.exists()) {
+			boolean created = file.createNewFile();
+			if (!created) {
+				throw new RuntimeException("Unable to create new file \"" + fileLocation + "\" for storage purposes.");
+			}
+		}
+	}
+
+	@Override
+	public void deleteStorage() {
+
+		File file = new File(fileLocation);
+		if (file.exists()) {
+			boolean delete = file.delete();
+			if (!delete) {
+				throw new RuntimeException("Unable to delete file \"" + fileLocation + "\".");
+			}
+		}
+	}
+
 
 	/* -----
 	 * Utils
