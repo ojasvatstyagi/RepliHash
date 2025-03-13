@@ -386,7 +386,8 @@ public class NodeActor extends UntypedActor {
 
 			// store the update request to be able to process the responses
 			requestCount++;
-			writeRequests.put(requestCount, new WriteRequestStatus(key, message.getValue(), getSender()));
+			writeRequests.put(requestCount, new WriteRequestStatus(key, message.getValue(), getSender(),
+				SystemConstants.READ_QUORUM, SystemConstants.WRITE_QUORUM));
 
 			// before update key, ask the responsible nodes for the key
 			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, SystemConstants.REPLICATION);

@@ -1,7 +1,6 @@
 package it.unitn.ds1.node;
 
 import akka.actor.ActorRef;
-import it.unitn.ds1.SystemConstants;
 import it.unitn.ds1.storage.VersionedItem;
 
 import java.util.LinkedList;
@@ -23,13 +22,13 @@ public final class WriteRequestStatus {
 	private final int quorum;
 	private int nullVotes;
 
-	public WriteRequestStatus(int key, String newValue, ActorRef sender) {
-
+	public WriteRequestStatus(int key, String newValue, ActorRef sender, int readQuorum, int writeQuorum) {
+		assert readQuorum > 0 && writeQuorum > 0;
 		this.key = key;
 		this.newValue = newValue;
 		this.replies = new LinkedList<>();
 		this.sender = sender;
-		this.quorum = Math.max(SystemConstants.READ_QUORUM, SystemConstants.WRITE_QUORUM);
+		this.quorum = Math.max(readQuorum, writeQuorum);
 		this.nullVotes = 0;
 	}
 
@@ -42,7 +41,7 @@ public final class WriteRequestStatus {
 	}
 
 	public boolean isQuorumReached() {
-		return this.replies.size() + this.nullVotes == quorum;
+		return this.replies.size() + this.nullVotes >= quorum;
 	}
 
 	public int getKey() {

@@ -21,7 +21,7 @@ public class ReadRequestStatusTest {
 	@Test(expected = IllegalStateException.class)
 	public void noVotes() {
 		final ReadRequestStatus s = new ReadRequestStatus(3, ActorRef.noSender(), 1);
-		assertNull(s.getLatestValue());
+		s.getLatestValue();
 	}
 
 	@Test
