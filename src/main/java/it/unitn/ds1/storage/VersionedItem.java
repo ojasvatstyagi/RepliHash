@@ -1,5 +1,7 @@
 package it.unitn.ds1.storage;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.io.Serializable;
 
 /**
@@ -17,6 +19,7 @@ public class VersionedItem implements Serializable {
 		this.version = version;
 	}
 
+	@Nullable
 	public String getValue() {
 		return value;
 	}

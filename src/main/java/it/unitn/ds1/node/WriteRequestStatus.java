@@ -12,6 +12,8 @@ import java.util.List;
 @SuppressWarnings("WeakerAccess")
 public final class WriteRequestStatus {
 
+	// TODO: add also nodes that were responsible for this
+
 	// internal variables
 	private final int key;
 	private final String newValue;

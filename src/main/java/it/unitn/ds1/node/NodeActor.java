@@ -57,7 +57,7 @@ public class NodeActor extends UntypedActor {
 	// Maps the requestID to the request status
 	private final Map<Integer, ReadRequestStatus> readRequests;
 
-	// Read requests for a future write request the node is responsible for
+	// Write progress for a future write request the node is responsible for
 	// Maps the requestID to the request status
 	private final Map<Integer, WriteRequestStatus> writeRequests;
 
@@ -253,6 +253,8 @@ public class NodeActor extends UntypedActor {
 			onData((DataMessage) message);
 		} else if (message instanceof JoinMessage) {
 			onJoin((JoinMessage) message);
+		} else if (message instanceof ReJoinMessage) {
+			onReJoin((ReJoinMessage) message);
 		} else if (message instanceof LeaveMessage) {
 			onLeave((LeaveMessage) message);
 		} else {
@@ -322,17 +324,26 @@ public class NodeActor extends UntypedActor {
 			}
 
 			case RECOVERING_WAITING_NODES: {
+				assert cache.isEmpty();
 
 				// load records from storage
-				Map<Integer, VersionedItem> records = storageManager.readRecords();
+				final Map<Integer, VersionedItem> oldRecords = storageManager.readRecords();
 
-				// TODO remove unwanted records from 'records' variable
+				// TODO: check if this works
+				// remove unwanted records
+				final Map<Integer, VersionedItem> records = oldRecords.entrySet().stream()
+					.filter(entry -> responsibleForKey(nodes.keySet(), entry.getKey(), SystemConstants.REPLICATION).contains(id))
+					.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+				logger.info("[RECOVERY]: old keys = {}, new keys = {}, nodes = {}", oldRecords.keySet(), records.keySet(), nodes.keySet());
 
 				// update storage and cache
 				storageManager.writeRecords(records);
 				cache.putAll(records);
 
-				// TODO: no need to announce me to the system... they should know me already
+				// I need to announce me to the system... because nodes have outdated Akka references
+				// this is not really part of the protocol, it is just an Akka implementation detail
+				nodes.put(id, getSelf());    // I probably got an old reference for myself too... correct it!
+				multicast(new ReJoinMessage(id));
 
 				// now I am ready
 				this.state = State.READY;
@@ -391,7 +402,7 @@ public class NodeActor extends UntypedActor {
 
 			// before update key, ask the responsible nodes for the key
 			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, SystemConstants.REPLICATION);
-			logger.info("Client request to update key {}. Asking nodes {}", key, responsible);
+			logger.info("Client request to update key {}. Asking nodes {}. Nodes = {}", key, responsible, nodes.keySet());
 			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
 
 			// TODO: set timeout to cleanup old requests
@@ -408,6 +419,10 @@ public class NodeActor extends UntypedActor {
 		// read the value from the data-store and send it back
 		final VersionedItem item = read(key);
 		reply(new ReadResponse(id, message.getRequestID(), key, item));
+
+		// log
+		logger.info("Got a read request from node [{}] for key [{}]. Reply value \"{}\"",
+			message.getSenderID(), message.getKey(), item != null ? item.getValue() : null);
 	}
 
 
@@ -519,6 +534,19 @@ public class NodeActor extends UntypedActor {
 		logger.info("Node [{}] is joining. Nodes = {}", message.getSenderID(), nodes.keySet());
 
 		// TODO: remove the keys I am not responsible for
+	}
+
+	private void onReJoin(ReJoinMessage message) {
+
+		// update the reference for the crashed node
+		// this is needed because Akka gives to the node a different reference
+		// if started again after a crash
+		this.nodes.put(message.getSenderID(), getSender());
+
+		// log
+		logger.warning("Node [{}] is re-joining after a crash. Nodes = {}", message.getSenderID(), nodes.keySet());
+
+		// TODO: here I do NOT need to update the keys, right???
 	}
 
 	private void onLeave(LeaveMessage message) {
