@@ -1,13 +1,15 @@
 package it.unitn.ds1.storage;
 
-import it.unitn.ds1.SystemConstants;
 import it.unitn.ds1.storage.exceptions.ReadException;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -21,27 +23,21 @@ public class FileStorageManager implements StorageManager {
 	// use space as record separator as requested from project guidelines
 	private static CSVFormat CUSTOM_CSV_FORMAT = CSVFormat.DEFAULT.withDelimiter(' ');
 
-	private static StorageManager storageManager;
 	private String fileLocation;
 
-	private FileStorageManager(int nodeId) throws IOException {
-		fileLocation = SystemConstants.STORAGE_LOCATION + "/" + "nodeStorage-" + nodeId + ".txt";
+	public FileStorageManager(@NotNull String storagePath, int nodeId) throws IOException {
+
+		File file = new File(storagePath, "nodeStorage-" + nodeId + ".txt");
+		fileLocation = file.getAbsolutePath();
 
 		// check if file exists. If no, create a new one.
-		File file = new File(fileLocation);
 		if (!file.exists()) {
 			boolean created = file.createNewFile();
 			if (!created) {
-				throw new RuntimeException("Unable to create new file \"" + fileLocation + "\" for storage purposes.");
+				throw new RuntimeException("Unable to create new file \"" + fileLocation + "\" for storage purposes.\n" +
+					"Please, check the \"storage-path\" key in Akka configuration file.");
 			}
 		}
-	}
-
-	public static StorageManager getInstance(int nodeId) throws IOException {
-		if (storageManager == null) {
-			storageManager = new FileStorageManager(nodeId);
-		}
-		return storageManager;
 	}
 
 	private CSVPrinter getFilePrinter() throws IOException {

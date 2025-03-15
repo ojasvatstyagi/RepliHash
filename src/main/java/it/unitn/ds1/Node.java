@@ -4,13 +4,7 @@ import akka.actor.ActorSystem;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import it.unitn.ds1.node.NodeActor;
-import it.unitn.ds1.storage.FileStorageManager;
-import it.unitn.ds1.storage.VersionedItem;
 import org.apache.commons.validator.routines.InetAddressValidator;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Entry point to launch a new node.
@@ -21,6 +15,10 @@ public class Node {
 	 * Key used in the configuration file to pass the ID for the Node to launch.
 	 */
 	private static final String CONFIG_NODE_ID = "node.id";
+	/**
+	 * Key used in the configuration file to indicate where the node data store should be created.
+	 */
+	private static final String CONFIG_STORAGE_PATH = "node.storage-path";
 
 	/**
 	 * Error message to print when the Node is invoked with the wrong parameters.
@@ -65,6 +63,14 @@ public class Node {
 		}
 	}
 
+	/**
+	 * Validate quorum parameters defined at compile time.
+	 * @return True if parameters are correct, false otherwise.
+	 */
+	private static boolean validateQuorumParameters() {
+		return SystemConstants.READ_QUORUM + SystemConstants.WRITE_QUORUM > SystemConstants.REPLICATION;
+	}
+
 
 	/**
 	 * Entry point.
@@ -72,6 +78,13 @@ public class Node {
 	 * @param args Command line arguments.
 	 */
 	public static void main(String[] args) {
+
+		// make sure that quorum parameter are right
+		if (!validateQuorumParameters()) {
+			System.err.println("Wrong quorum parameters. \"(ReadQuorum + WriteQuorum) > NumberOfReplicas\" must hold.\n" +
+				"Parameters must be corrected in source code.");
+			System.exit(3);
+		}
 
 		// check the command line arguments
 		if (args.length < 1) {
@@ -157,7 +170,8 @@ public class Node {
 
 		// create a NodeActor of type "bootstrap" and add it to the system
 		final int id = config.getInt(CONFIG_NODE_ID);
-		system.actorOf(NodeActor.bootstrap(id), SystemConstants.ACTOR_NAME);
+		final String storagePath = config.getString(CONFIG_STORAGE_PATH);
+		system.actorOf(NodeActor.bootstrap(id, storagePath), SystemConstants.ACTOR_NAME);
 	}
 
 	/**
@@ -176,9 +190,10 @@ public class Node {
 
 		// create a NodeActor of type "join" and add it to the system
 		final int id = config.getInt(CONFIG_NODE_ID);
+		final String storagePath = config.getString(CONFIG_STORAGE_PATH);
 		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
 			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
-		system.actorOf(NodeActor.join(id, remote), SystemConstants.ACTOR_NAME);
+		system.actorOf(NodeActor.join(id, storagePath, remote), SystemConstants.ACTOR_NAME);
 	}
 
 	/**
@@ -197,9 +212,10 @@ public class Node {
 
 		// create a NodeActor of type "join" and add it to the system
 		final int id = config.getInt(CONFIG_NODE_ID);
+		final String storagePath = config.getString(CONFIG_STORAGE_PATH);
 		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
 			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
-		system.actorOf(NodeActor.recover(id, remote), SystemConstants.ACTOR_NAME);
+		system.actorOf(NodeActor.recover(id, storagePath, remote), SystemConstants.ACTOR_NAME);
 	}
 
 }

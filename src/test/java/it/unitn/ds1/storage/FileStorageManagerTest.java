@@ -1,6 +1,5 @@
 package it.unitn.ds1.storage;
 
-import it.unitn.ds1.SystemConstants;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,19 +19,20 @@ public class FileStorageManagerTest {
 
 	private static final int NODE_ID = 10;
 
-	private static final String fileLocation = SystemConstants.STORAGE_LOCATION + "/" + "nodeStorage-" + NODE_ID + ".txt";
+	private static final String storageFilePath = "/tmp/" + "nodeStorage-" + NODE_ID + ".txt";
+	private static final String storageFileDirectory = "/tmp";
 
 	@Before
 	public void prepareStorage() throws IOException {
 
-		File file = new File(fileLocation);
+		File file = new File(storageFilePath);
 		if (file.exists()) {
 			file.delete();
 		}
 		file.createNewFile();
 
 		InputStream input = FileStorageManagerTest.class.getResourceAsStream("/it/unitn/ds1/storage/sampleStorage.txt");
-		OutputStream output = new FileOutputStream(fileLocation);
+		OutputStream output = new FileOutputStream(storageFilePath);
 
 		byte[] buf = new byte[1024];
 		int bytesRead;
@@ -46,7 +46,7 @@ public class FileStorageManagerTest {
 
 	@After
 	public void removeStorage() {
-		File file = new File(fileLocation);
+		File file = new File(storageFilePath);
 		if (file.exists()) {
 			file.delete();
 		}
@@ -55,7 +55,7 @@ public class FileStorageManagerTest {
 	@Test
 	public void readRecords() throws IOException {
 
-		StorageManager storageManager = FileStorageManager.getInstance(NODE_ID);
+		StorageManager storageManager = new FileStorageManager(storageFileDirectory, NODE_ID);
 
 		Map<Integer, VersionedItem> records = storageManager.readRecords();
 		assertEquals(5, records.size());
@@ -64,7 +64,7 @@ public class FileStorageManagerTest {
 	@Test
 	public void readRecord() throws IOException {
 
-		StorageManager storageManager = FileStorageManager.getInstance(NODE_ID);
+		StorageManager storageManager = new FileStorageManager(storageFileDirectory, NODE_ID);
 
 		VersionedItem record = storageManager.readRecord(17);
 		assertNotNull(record);
@@ -75,7 +75,7 @@ public class FileStorageManagerTest {
 	@Test
 	public void appendNewRecord() throws IOException {
 
-		StorageManager storageManager = FileStorageManager.getInstance(NODE_ID);
+		StorageManager storageManager = new FileStorageManager(storageFileDirectory, NODE_ID);
 		storageManager.appendRecord(20, new VersionedItem("value20", 1));
 
 		assertEquals(6, storageManager.readRecords().size());
@@ -89,7 +89,7 @@ public class FileStorageManagerTest {
 	@Test
 	public void appendExistentRecord() throws IOException {
 
-		StorageManager storageManager = FileStorageManager.getInstance(NODE_ID);
+		StorageManager storageManager = new FileStorageManager(storageFileDirectory, NODE_ID);
 		storageManager.appendRecord(12, new VersionedItem("newValue", 16));
 
 		assertEquals(5, storageManager.readRecords().size());
@@ -102,7 +102,7 @@ public class FileStorageManagerTest {
 
 	@Test
 	public void writeRecords() throws IOException {
-		StorageManager storageManager = FileStorageManager.getInstance(NODE_ID);
+		StorageManager storageManager = new FileStorageManager(storageFileDirectory, NODE_ID);
 
 		Map<Integer, VersionedItem> records = new HashMap<>();
 		records.put(100, new VersionedItem("val100", 1));
@@ -115,7 +115,7 @@ public class FileStorageManagerTest {
 
 	@Test
 	public void removeRecords() throws IOException {
-		StorageManager storageManager = FileStorageManager.getInstance(NODE_ID);
+		StorageManager storageManager = new FileStorageManager(storageFileDirectory, NODE_ID);
 
 		List<Integer> keys = new ArrayList<>();
 		keys.add(13);
@@ -130,7 +130,7 @@ public class FileStorageManagerTest {
 
 	@Test
 	public void clearRecords() throws IOException {
-		StorageManager storageManager = FileStorageManager.getInstance(NODE_ID);
+		StorageManager storageManager = new FileStorageManager(storageFileDirectory, NODE_ID);
 
 		storageManager.clearStorage();
 		assertEquals(0, storageManager.readRecords().size());

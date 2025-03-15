@@ -1,6 +1,7 @@
 package it.unitn.ds1.node;
 
 import akka.actor.ActorRef;
+import akka.actor.Cancellable;
 import akka.actor.Props;
 import akka.actor.UntypedActor;
 import akka.event.DiagnosticLoggingAdapter;
@@ -14,6 +15,7 @@ import it.unitn.ds1.storage.StorageManager;
 import it.unitn.ds1.storage.VersionedItem;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import scala.concurrent.duration.Duration;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -21,7 +23,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import static it.unitn.ds1.SystemConstants.QUORUM_TIMEOUT_SECONDS;
 
 /**
  * Akka Actor that implements the node's behaviour.
@@ -61,6 +66,12 @@ public class NodeActor extends UntypedActor {
 	// Maps the requestID to the request status
 	private final Map<Integer, WriteRequestStatus> writeRequests;
 
+	// Timers for read or write requests
+	// Every timer is responsible for delivering a timeout message to node is responsible for the request.
+	// Maps the requestID to the timer
+	private final Map<Integer, Cancellable> requestsTimers;
+
+
 	// Unique incremental identifier for each client request
 	// The counter is to be considered unique only inside the same node
 	private int requestCount;
@@ -76,13 +87,13 @@ public class NodeActor extends UntypedActor {
 	 * @param remote         Remote address of another actor to contact to leave the system.
 	 *                       This parameter is not required for the bootstrap node.
 	 */
-	private NodeActor(int id, @NotNull StartupCommand startupCommand, @Nullable String remote) throws IOException {
+	private NodeActor(int id, @NotNull String storagePath, @NotNull StartupCommand startupCommand, @Nullable String remote) throws IOException {
 		this.id = id;
 		this.startupCommand = startupCommand;
 		this.remote = remote;
 
 		// initialize storage manager
-		this.storageManager = FileStorageManager.getInstance(id);
+		this.storageManager = new FileStorageManager(storagePath, id);
 
 		// add myself to the map of nodes
 		this.nodes = new HashMap<>();
@@ -94,6 +105,7 @@ public class NodeActor extends UntypedActor {
 		// initialize other variables
 		this.readRequests = new HashMap<>();
 		this.writeRequests = new HashMap<>();
+		this.requestsTimers = new HashMap<>();
 		this.requestCount = 0;
 
 		// setup logger context
@@ -111,13 +123,13 @@ public class NodeActor extends UntypedActor {
 	 * Create Props for a node that should bootstrap the system.
 	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
 	 */
-	public static Props bootstrap(final int id) {
+	public static Props bootstrap(final int id, @NotNull final String storagePath) {
 		return Props.create(new Creator<NodeActor>() {
 			private static final long serialVersionUID = 1L;
 
 			@Override
 			public NodeActor create() throws Exception {
-				return new NodeActor(id, StartupCommand.BOOTSTRAP, null);
+				return new NodeActor(id, storagePath, StartupCommand.BOOTSTRAP, null);
 			}
 		});
 	}
@@ -126,13 +138,13 @@ public class NodeActor extends UntypedActor {
 	 * Create Props for a new node that is willing to join the system.
 	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
 	 */
-	public static Props join(final int id, String remote) {
+	public static Props join(final int id, @NotNull final String storagePath, String remote) {
 		return Props.create(new Creator<NodeActor>() {
 			private static final long serialVersionUID = 1L;
 
 			@Override
 			public NodeActor create() throws Exception {
-				return new NodeActor(id, StartupCommand.JOIN, remote);
+				return new NodeActor(id, storagePath, StartupCommand.JOIN, remote);
 			}
 		});
 	}
@@ -141,13 +153,13 @@ public class NodeActor extends UntypedActor {
 	 * Create Props for a new node that is willing to join back the system after a crash.
 	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
 	 */
-	public static Props recover(final int id, String remote) {
+	public static Props recover(final int id, @NotNull final String storagePath, String remote) {
 		return Props.create(new Creator<NodeActor>() {
 			private static final long serialVersionUID = 1L;
 
 			@Override
 			public NodeActor create() throws Exception {
-				return new NodeActor(id, StartupCommand.RECOVER, remote);
+				return new NodeActor(id, storagePath, StartupCommand.RECOVER, remote);
 			}
 		});
 	}
@@ -257,6 +269,8 @@ public class NodeActor extends UntypedActor {
 			onReJoin((ReJoinMessage) message);
 		} else if (message instanceof LeaveMessage) {
 			onLeave((LeaveMessage) message);
+		} else if (message instanceof TimeoutMessage) {
+			onRequestTimeout((TimeoutMessage) message);
 		} else {
 			unhandled(message);
 		}
@@ -359,12 +373,12 @@ public class NodeActor extends UntypedActor {
 		// extract the key to search
 		final int key = message.getKey();
 
-		// get the nodes responsible for that key
-		if (SystemConstants.READ_QUORUM > nodes.size()) {
-			logger.warning("Client request for key {}... but there are not enough nodes in the system: quorum={}, nodes={}",
-				key, SystemConstants.READ_QUORUM, nodes.size());
+		if (SystemConstants.READ_QUORUM > nodes.size() || SystemConstants.REPLICATION > nodes.size()) {
+			logger.warning("Client request for key {}... but there are not enough nodes in the system: quorum={}, replication nodes={}, nodes={}",
+				key, SystemConstants.READ_QUORUM, SystemConstants.REPLICATION, nodes.size());
 
-			// TODO...
+			// inform client that read is impossible
+			getSender().tell(new ClientOperationErrorResponse(id, "Read operation is not possible because there aren't enough nodes in the network"), getSelf());
 
 		} else {
 
@@ -377,7 +391,10 @@ public class NodeActor extends UntypedActor {
 			logger.info("Client request for key {}. Asking nodes {}", key, responsible);
 			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
 
-			// TODO: set timeout to cleanup old requests
+			// set a timeout within which reach the quorum
+			final TimeoutMessage timeoutMessage = new TimeoutMessage(id, requestCount);
+			Cancellable timer = getContext().system().scheduler().scheduleOnce(Duration.create(QUORUM_TIMEOUT_SECONDS, TimeUnit.SECONDS), getSelf(), timeoutMessage, getContext().system().dispatcher(), getSelf());
+			requestsTimers.put(requestCount, timer);
 		}
 	}
 
@@ -391,7 +408,8 @@ public class NodeActor extends UntypedActor {
 			logger.warning("Client request to update key {}... but there are not enough nodes in the system: replication nodes={}, nodes={}",
 				key, SystemConstants.REPLICATION, nodes.size());
 
-			// TODO...
+			// inform client that update is impossible
+			getSender().tell(new ClientOperationErrorResponse(id, "Update operation is not possible because there aren't enough nodes in the network"), getSelf());
 
 		} else {
 
@@ -405,7 +423,10 @@ public class NodeActor extends UntypedActor {
 			logger.info("Client request to update key {}. Asking nodes {}. Nodes = {}", key, responsible, nodes.keySet());
 			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
 
-			// TODO: set timeout to cleanup old requests
+			// set a timeout within which reach the quorum
+			final TimeoutMessage timeoutMessage = new TimeoutMessage(id, requestCount);
+			Cancellable timer = getContext().system().scheduler().scheduleOnce(Duration.create(QUORUM_TIMEOUT_SECONDS, TimeUnit.SECONDS), getSelf(), timeoutMessage, getContext().system().dispatcher(), getSelf());
+			requestsTimers.put(requestCount, timer);
 		}
 	}
 
@@ -466,8 +487,12 @@ public class NodeActor extends UntypedActor {
 					logger.info("Quorum reached for read request [{}] - result is \"{}\"", requestID, readStatus.getLatestValue());
 					readStatus.getSender().tell(new ClientReadResponse(id, readStatus.getKey(), readStatus.getLatestValue()), getSelf());
 
+					// cancel the quorum timeout
+					this.requestsTimers.get(requestID).cancel();
+
 					// cleanup memory
 					this.readRequests.remove(requestID);
+					this.requestsTimers.remove(requestID);
 
 				} else {
 					logger.info("Quorum NOT yet reached for read request [{}] - waiting...", requestID);
@@ -495,8 +520,12 @@ public class NodeActor extends UntypedActor {
 					// TODO check if this is the right way to send an object
 					responsible.forEach(node -> nodes.get(node).tell(new WriteRequest(id, requestCount, writeStatus.getKey(), updatedRecord), getSelf()));
 
+					// cancel the quorum timeout
+					this.requestsTimers.get(requestID).cancel();
+
 					// cleanup memory
 					this.writeRequests.remove(requestID);
+					this.requestsTimers.remove(requestID);
 
 				} else {
 					logger.info("Quorum NOT yet reached for write request [{}] - waiting...", requestID);
@@ -505,6 +534,35 @@ public class NodeActor extends UntypedActor {
 		}
 	}
 
+	private void onRequestTimeout(@NotNull TimeoutMessage message) {
+
+		// A read or write operation started from this node could have not been concluded before reach the this timeout.
+		// Check if the operation is concluded. If not, send an error msg to client.
+
+		ReadRequestStatus readRequestStatus = readRequests.get(message.getRequestID());
+		WriteRequestStatus writeRequestStatus = writeRequests.get(message.getRequestID());
+
+		if (!(readRequestStatus == null && writeRequestStatus == null)) { // operation is still pending
+
+			logger.warning("Quorum TIMEOUT reached for request [{}] - cancel operation", message.getRequestID());
+
+			// send an error message to the client
+			ActorRef client;
+
+			if (readRequestStatus != null) {
+				client = readRequestStatus.getSender();
+			} else {
+				client = writeRequestStatus.getSender();
+			}
+
+			assert client != null;
+			client.tell(new ClientOperationErrorResponse(id, "Timeout for this operation has been reached"), getSelf());
+
+			// remove the operation from "current operations"
+			readRequests.remove(message.getRequestID());
+			writeRequests.remove(message.getRequestID());
+		}
+	}
 
 	private void onData(@NotNull DataMessage message) {
 		assert this.state == State.JOINING_WAITING_DATA;
