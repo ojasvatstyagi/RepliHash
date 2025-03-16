@@ -22,6 +22,7 @@ public final class LeaveCommand extends BaseCommand {
 
 	@Override
 	protected void command(ActorSelection actor, LoggingAdapter logger) throws Exception {
+		logger.info("[CLIENT] Asking node [{}] to leave...", getRemote());
 
 		// instruct the target actor to leave the system
 		final Timeout timeout = new Timeout(5, TimeUnit.SECONDS);
@@ -32,6 +33,7 @@ public final class LeaveCommand extends BaseCommand {
 		assert message instanceof ClientLeaveResponse;
 
 		// log the result
-		logger.info("Actor [{}] has successful left the system.", ((ClientLeaveResponse) message).getSenderID());
+		logger.info("[CLIENT] Node [{} - {}] has successful left the system",
+			((ClientLeaveResponse) message).getSenderID(), getRemote());
 	}
 }

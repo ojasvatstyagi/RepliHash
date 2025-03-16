@@ -28,9 +28,7 @@ public final class UpdateCommand extends BaseCommand {
 
 	@Override
 	protected void command(ActorSelection actor, LoggingAdapter logger) throws Exception {
-
-		// log the request
-		logger.info("Request update of key {} with value \"{}\"...", key, value);
+		logger.info("[CLIENT] Update key [{}] with value \"{}\" on node [{}]...", key, value, getRemote());
 
 		// send the command to the actor
 		final Timeout timeout = new Timeout(5, TimeUnit.SECONDS);
@@ -42,7 +40,7 @@ public final class UpdateCommand extends BaseCommand {
 		final ClientUpdateResponse result = (ClientUpdateResponse) message;
 
 		// log the result
-		logger.info("Actor [{}] replies... value of key ({}) has been updated (value: \"{}\", version: {})",
+		logger.info("[CLIENT] Actor [{}] replies: key [{}] has been updated (value: \"{}\", version: {})",
 			result.getSenderID(), result.getKey(), result.getVersionedItem().getValue(), result.getVersionedItem().getVersion());
 
 		// TODO: return some exit code???

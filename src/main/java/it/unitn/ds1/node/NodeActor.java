@@ -99,7 +99,7 @@ public class NodeActor extends UntypedActor {
 		// setup logger context
 		this.logger = Logging.getLogger(this);
 		final Map<String, Object> mdc = new HashMap<String, Object>() {{
-			put("actor", "Node [" + id + "]");
+			put("actor", "Node [" + id + "]:");
 		}};
 		logger.setMDC(mdc);
 
