@@ -104,7 +104,7 @@ public class NodeActor extends UntypedActor {
 		logger.setMDC(mdc);
 
 		// debug log
-		logger.warning("Initialize node with initial state {}", startupCommand);
+		logger.info("Initialize node with initial state {}", startupCommand);
 	}
 
 	/**
@@ -193,42 +193,57 @@ public class NodeActor extends UntypedActor {
 	 */
 	@Override
 	public void preStart() throws IOException {
-
-		// depending on the initialization, decide what to do
 		switch (startupCommand) {
 
-			// nothing needed in this case
-			case BOOTSTRAP:
-				this.state = State.READY;
+			// this is the first node - just initialize the storage
+			case BOOTSTRAP: {
+
 				// initialize storage
 				storageManager.clearStorage();
 
-				logger.info("preStart(): do nothing, move to {}", state);
+				// ready
+				this.state = State.READY;
+
+				logger.debug("PreStart(): storage initialized, move to {}", state);
 				break;
+			}
 
 			// asks to the node provided from the command line to join the system
-			case JOIN:
-				this.state = State.JOINING_WAITING_NODES;
+			case JOIN: {
+
 				// initialize storage
 				storageManager.clearStorage();
 
-				logger.info("preStart(): move to {}, ask to join to {}", state, remote);
+				// ask the list of nodes
 				getContext().actorSelection(remote).tell(new JoinRequestMessage(id), getSelf());
+				this.state = State.JOINING_WAITING_NODES;
+
+				logger.debug("PreStart(): storage initialized, ask to join to [{}], move to {}", remote, state);
 				break;
+			}
 
 			// asks to the node provided from the command line the nodes in the system, needed for the recovery
-			case RECOVER:
+			case RECOVER: {
+
+				// ask nodes, in order to complete the recovery
+				getContext().actorSelection(remote).tell(new JoinRequestMessage(id), getSelf());
 				this.state = State.RECOVERING_WAITING_NODES;
 
-				logger.info("preStart(): move to {}, ask nodes to {}", state, remote);
-				getContext().actorSelection(remote).tell(new JoinRequestMessage(id), getSelf());
+				logger.debug("PreStart(): ask nodes to [{}], move to {}", remote, state);
 				break;
+			}
 		}
 
-		// preStart must initialize the state
+		// the method must initialize the state
 		assert this.state != null;
 	}
 
+	/**
+	 * For each type of message, call the relative callback
+	 * to keep this method short and clean.
+	 *
+	 * @param message Incoming message.
+	 */
 	@Override
 	public void onReceive(Object message) {
 		if (message instanceof JoinRequestMessage) {
@@ -264,28 +279,43 @@ public class NodeActor extends UntypedActor {
 
 	private void onJoinRequest(@NotNull JoinRequestMessage message) {
 
-		// TODO: check that I am ready to reply
+		// I already have the nodes
+		if (state != State.JOINING_WAITING_NODES && state != State.RECOVERING_WAITING_NODES) {
+			logger.debug("Node [{}] asks to join the network... sending my nodes: {}", message.getSenderID(), nodes.keySet());
 
-		logger.info("Node [{}] asks to join the network", message.getSenderID());
+			// send back the list of nodes
+			reply(new NodesListMessage(id, nodes));
+		}
 
-		// send back the list of nodes
-		reply(new NodesListMessage(id, nodes));
+		// if I am not ready, ignore the message
+		else {
+			logger.warning("Node [{}] asks to join the network, but I am NOT ready to reply ({}); ignore the request",
+				message.getSenderID(), state);
+		}
 	}
 
 	private void onDataRequest(@NotNull DataRequestMessage message) {
 
-		// TODO: check that I am ready to reply
+		// I am ready to reply
+		if (state == State.READY) {
 
-		logger.info("Node [{}] asks my data", message.getSenderID());
+			// extract the data
+			final Map<Integer, VersionedItem> records = storageManager.readRecords();
+			logger.debug("Node [{}] asks my data. Sending keys: {}", message.getSenderID(), records.keySet());
 
-		final Map<Integer, VersionedItem> records = storageManager.readRecords();
+			// send back the data
+			reply(new DataMessage(id, records));
+		}
 
-		// send back the data
-		reply(new DataMessage(id, records));
+		// I am waiting for the data, cannot reply
+		else {
+			logger.warning("Node [{}] asks my data, but I am not ready ({}); ignore the request",
+				message.getSenderID(), state);
+		}
 	}
 
 	private void onLeaveRequest() {
-		logger.info("The Client requests me to leave");
+		logger.warning("[LEAVE] A Client asks me to leave... sending goodbye message");
 
 		// TODO: do stuff, exit protocol
 
@@ -304,12 +334,14 @@ public class NodeActor extends UntypedActor {
 
 	private void onNodesList(@NotNull NodesListMessage message) {
 		assert state == State.JOINING_WAITING_NODES || state == State.RECOVERING_WAITING_NODES;
-		logger.info("Node [{}] sends the list of nodes: {}", message.getSenderID(), message.getNodes().keySet());
+		logger.debug("Node [{}] sends the list of nodes: {}", message.getSenderID(), message.getNodes().keySet());
 
 		// update my list of nodes
 		this.nodes.putAll(message.getNodes());
 
 		switch (state) {
+
+			// I trying to join
 			case JOINING_WAITING_NODES: {
 
 				// compute the next node in the ring
@@ -323,6 +355,7 @@ public class NodeActor extends UntypedActor {
 				break;
 			}
 
+			// I was in the system, but I am recovering after a crash
 			case RECOVERING_WAITING_NODES: {
 				assert cache.isEmpty();
 
@@ -330,24 +363,28 @@ public class NodeActor extends UntypedActor {
 				final Map<Integer, VersionedItem> oldRecords = storageManager.readRecords();
 
 				// TODO: check if this works
+
 				// remove unwanted records
 				final Map<Integer, VersionedItem> records = oldRecords.entrySet().stream()
 					.filter(entry -> responsibleForKey(nodes.keySet(), entry.getKey(), SystemConstants.REPLICATION).contains(id))
 					.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-				logger.info("[RECOVERY]: old keys = {}, new keys = {}, nodes = {}", oldRecords.keySet(), records.keySet(), nodes.keySet());
+				logger.debug("[RECOVERY] Nodes = {}, old keys = {}, new keys = {}",
+					oldRecords.keySet(), records.keySet(), nodes.keySet());
 
 				// update storage and cache
 				storageManager.writeRecords(records);
 				cache.putAll(records);
 
+				// I probably got an old reference for myself too... correct it!
+				nodes.put(id, getSelf());
+
 				// I need to announce me to the system... because nodes have outdated Akka references
 				// this is not really part of the protocol, it is just an Akka implementation detail
-				nodes.put(id, getSelf());    // I probably got an old reference for myself too... correct it!
 				multicast(new ReJoinMessage(id));
 
 				// now I am ready
 				this.state = State.READY;
-				logger.info("Recovery completed, state = {}, nodes = {}", state, nodes.keySet());
+				logger.info("[RECOVERY] Recovery completed, state = {}, nodes = {}", state, nodes.keySet());
 
 				break;
 			}
@@ -361,7 +398,7 @@ public class NodeActor extends UntypedActor {
 
 		// get the nodes responsible for that key
 		if (SystemConstants.READ_QUORUM > nodes.size()) {
-			logger.warning("Client request for key {}... but there are not enough nodes in the system: quorum={}, nodes={}",
+			logger.warning("[READ] A client requests key [{}]... but there are not enough nodes in the system (quorum={}, nodes={})",
 				key, SystemConstants.READ_QUORUM, nodes.size());
 
 			// TODO...
@@ -374,8 +411,10 @@ public class NodeActor extends UntypedActor {
 
 			// ask the responsible nodes for the key
 			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, SystemConstants.REPLICATION);
-			logger.info("Client request for key {}. Asking nodes {}", key, responsible);
 			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
+
+			logger.info("[READ] A client requests key [{}]... asking nodes {} of {}", key, responsible, nodes.keySet());
+
 
 			// TODO: set timeout to cleanup old requests
 		}
@@ -386,10 +425,12 @@ public class NodeActor extends UntypedActor {
 		// extract the key to update
 		final int key = message.getKey();
 
+		// TODO: this should be NOT replication, but READ / WRITE max ???
+
 		// get the nodes responsible for that key
 		if (SystemConstants.REPLICATION > nodes.size()) {
-			logger.warning("Client request to update key {}... but there are not enough nodes in the system: replication nodes={}, nodes={}",
-				key, SystemConstants.REPLICATION, nodes.size());
+			logger.warning("[UPDATE] A client requests to update key [{}]... but there are not enough nodes in the system: " +
+				"(replication={}, nodes={})", key, SystemConstants.REPLICATION, nodes.size());
 
 			// TODO...
 
@@ -402,8 +443,9 @@ public class NodeActor extends UntypedActor {
 
 			// before update key, ask the responsible nodes for the key
 			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, SystemConstants.REPLICATION);
-			logger.info("Client request to update key {}. Asking nodes {}. Nodes = {}", key, responsible, nodes.keySet());
 			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
+
+			logger.info("[UPDATE] A client requests to update key [{}]... asking nodes {} of {}", key, responsible, nodes.keySet());
 
 			// TODO: set timeout to cleanup old requests
 		}
@@ -421,8 +463,9 @@ public class NodeActor extends UntypedActor {
 		reply(new ReadResponse(id, message.getRequestID(), key, item));
 
 		// log
-		logger.info("Got a read request from node [{}] for key [{}]. Reply value \"{}\"",
-			message.getSenderID(), message.getKey(), item != null ? item.getValue() : null);
+		final String value = item != null ? "\"" + item.getValue() + "\"" : "NOT FOUND";
+		logger.debug("[READ] Read request from node [{}] for key [{}]: reply value {}",
+			message.getSenderID(), message.getKey(), value);
 	}
 
 
@@ -449,39 +492,40 @@ public class NodeActor extends UntypedActor {
 
 		// not valid -> ignore the message
 		if (!valid) {
-			logger.info("Got an old vote for read request [{}] from node [{}]", requestID, message.getSenderID());
+			logger.debug("[READ] Old vote for read request [{}] from node [{}]... ignore it", requestID, message.getSenderID());
 		}
 
 		// valid -> add it to the voting
 		else {
-			logger.info("Got a valid vote for read request [{}] from node [{}]", requestID, message.getSenderID());
+			logger.debug("[READ] Valid vote for read request [{}] from node [{}]", requestID, message.getSenderID());
 			final ReadRequestStatus readStatus = readRequests.get(requestID);
 
-			if (readStatus != null) { // request is related to a ClientRead request
-
+			// request is related to a ClientRead request
+			if (readStatus != null) {
 				readStatus.addVote(message.getValue());
 
 				// check quorum
 				if (readStatus.isQuorumReached()) {
-					logger.info("Quorum reached for read request [{}] - result is \"{}\"", requestID, readStatus.getLatestValue());
+					final String value = readStatus.getLatestValue() != null ? "\"" + readStatus.getLatestValue() + "\"" : "NOT FOUND";
+					logger.info("[READ] Quorum reached for read request [{}] - result is " + "{}", requestID, value);
 					readStatus.getSender().tell(new ClientReadResponse(id, readStatus.getKey(), readStatus.getLatestValue()), getSelf());
 
 					// cleanup memory
 					this.readRequests.remove(requestID);
 
 				} else {
-					logger.info("Quorum NOT yet reached for read request [{}] - waiting...", requestID);
+					logger.debug("[READ] Quorum NOT reached yet for read request [{}] - waiting...", requestID);
 				}
+			}
 
-			} else { // request is related to a ClientUpdate request
-
+			// request is related to a ClientUpdate request
+			else {
 				final WriteRequestStatus writeStatus = writeRequests.get(requestID);
-
 				writeStatus.addVote(message.getValue());
 
 				// check quorum
 				if (writeStatus.isQuorumReached()) {
-					logger.info("Quorum reached for write request [{}] - updated record is \"{}\"", requestID, writeStatus.getUpdatedRecord());
+					logger.info("[UPDATE] Quorum reached for write request [{}] - updated record to \"{}\"", requestID, writeStatus.getUpdatedRecord());
 
 					// calculate new version
 					final VersionedItem updatedRecord = writeStatus.getUpdatedRecord();
@@ -499,7 +543,7 @@ public class NodeActor extends UntypedActor {
 					this.writeRequests.remove(requestID);
 
 				} else {
-					logger.info("Quorum NOT yet reached for write request [{}] - waiting...", requestID);
+					logger.debug("[UPDATE] Quorum NOT reached yet for write request [{}] - waiting...", requestID);
 				}
 			}
 		}
@@ -508,21 +552,19 @@ public class NodeActor extends UntypedActor {
 
 	private void onData(@NotNull DataMessage message) {
 		assert this.state == State.JOINING_WAITING_DATA;
+		logger.debug("Node [{}] sends the data it is responsible for.", message.getSenderID());
 
 		// TODO: store data --> all data?
 		storageManager.appendRecords(message.getRecords());
 		cache.putAll(message.getRecords());
 
 
-		logger.info("Node [{}] sends the data it is responsible for. Sending Join msg...", message.getSenderID());
-
 		// announce everybody that I am part of the system
 		multicast(new JoinMessage(id));
 
 		// now I am ready to serve requests
 		this.state = State.READY;
-
-		logger.info("Now I am part of the system. My nodes are: {}", nodes.keySet());
+		logger.info("Sending Join msg... now I am part of the system. My nodes are: {}", nodes.keySet());
 	}
 
 	private void onJoin(JoinMessage message) {
@@ -531,7 +573,8 @@ public class NodeActor extends UntypedActor {
 		this.nodes.put(message.getSenderID(), getSender());
 
 		// log
-		logger.info("Node [{}] is joining. Nodes = {}", message.getSenderID(), nodes.keySet());
+		logger.info("Node [{}] is joining... nodes = {}", message.getSenderID(), nodes.keySet());
+
 
 		// TODO: remove the keys I am not responsible for
 	}
@@ -544,7 +587,7 @@ public class NodeActor extends UntypedActor {
 		this.nodes.put(message.getSenderID(), getSender());
 
 		// log
-		logger.warning("Node [{}] is re-joining after a crash. Nodes = {}", message.getSenderID(), nodes.keySet());
+		logger.warning("Node [{}] is re-joining after a crash... nodes = {}", message.getSenderID(), nodes.keySet());
 
 		// TODO: here I do NOT need to update the keys, right???
 	}
@@ -555,7 +598,7 @@ public class NodeActor extends UntypedActor {
 		this.nodes.remove(message.getSenderID());
 
 		// log
-		logger.info("Node [{}] is leaving. Nodes = {}", message.getSenderID(), nodes.keySet());
+		logger.info("Node [{}] is leaving... nodes = {}", message.getSenderID(), nodes.keySet());
 	}
 
 	/**
@@ -599,6 +642,7 @@ public class NodeActor extends UntypedActor {
 	 */
 	private void write(int key, VersionedItem item) {
 
+		// store in the file
 		storageManager.appendRecord(key, item);
 
 		// write-though cache
