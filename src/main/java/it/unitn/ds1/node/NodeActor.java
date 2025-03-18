@@ -76,7 +76,17 @@ public class NodeActor extends UntypedActor {
 	 * @param remote         Remote address of another actor to contact to leave the system.
 	 *                       This parameter is not required for the bootstrap node.
 	 */
+	@SuppressWarnings("ConstantConditions")
 	private NodeActor(int id, @NotNull StartupCommand startupCommand, @Nullable String remote) throws IOException {
+
+		// at start, check that the constants R, W and N are correct
+		assert SystemConstants.READ_QUORUM > 0 : "Read Quorum must be positive";
+		assert SystemConstants.WRITE_QUORUM > 0 : "Write Quorum must be positive";
+		assert SystemConstants.REPLICATION > 0 : "Replication factor must be positive";
+		assert SystemConstants.READ_QUORUM + SystemConstants.WRITE_QUORUM > SystemConstants.REPLICATION :
+			"Condition R + W > N must hold to guarantee consistency in the system";
+
+		// initialize values
 		this.id = id;
 		this.startupCommand = startupCommand;
 		this.remote = remote;
@@ -176,7 +186,6 @@ public class NodeActor extends UntypedActor {
 	 * @return Set of responsible IDs.
 	 */
 	static Set<Integer> responsibleForKey(@NotNull Set<Integer> ids, int key, int n) {
-		assert n <= ids.size();                                // TODO: is this real???
 		return ids.stream().sorted((o1, o2) -> {
 			if (o1 >= key && o2 >= key) return o1 - o2;
 			if (o1 >= key && o2 < key) return -1;
