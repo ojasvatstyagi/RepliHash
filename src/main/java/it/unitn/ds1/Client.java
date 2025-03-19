@@ -134,6 +134,12 @@ public class Client {
 				final int key = parseIntOrExit(args[3]);
 				final String value = args[4];
 
+				// validate value
+				if (value.contains(" ")) {
+					System.err.println("Values cannot contain spaces. Please try again.");
+					printHelpAndExit();
+				}
+
 				// ask record update
 				update(ip, port, key, value);
 				break;
