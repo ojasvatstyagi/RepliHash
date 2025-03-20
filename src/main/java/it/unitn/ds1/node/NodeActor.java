@@ -368,21 +368,8 @@ public class NodeActor extends UntypedActor {
 			case RECOVERING_WAITING_NODES: {
 				assert cache.isEmpty();
 
-				// load records from storage
-				final Map<Integer, VersionedItem> oldRecords = storageManager.readRecords();
-
-				// TODO: check if this works
-
-				// remove unwanted records
-				final Map<Integer, VersionedItem> records = oldRecords.entrySet().stream()
-					.filter(entry -> responsibleForKey(nodes.keySet(), entry.getKey(), SystemConstants.REPLICATION).contains(id))
-					.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-				logger.debug("[RECOVERY] Nodes = {}, old keys = {}, new keys = {}",
-					oldRecords.keySet(), records.keySet(), nodes.keySet());
-
-				// update storage and cache
-				storageManager.writeRecords(records);
-				cache.putAll(records);
+				// clean old keys
+				this.dropOldKeys();
 
 				// I probably got an old reference for myself too... correct it!
 				nodes.put(id, getSelf());
@@ -488,6 +475,10 @@ public class NodeActor extends UntypedActor {
 		// write the new record in the data-store
 		write(key, message.getVersionedItem());
 
+		// log
+		logger.info("[UPDATE]: Node [{}] sends update key [{}] -> \"{}\", version {}",
+			message.getSenderID(), key, message.getVersionedItem().getValue(), message.getVersionedItem().getVersion());
+
 		// TODO: answer to sender? Project guidelines don't talk about it
 	}
 
@@ -558,10 +549,9 @@ public class NodeActor extends UntypedActor {
 		}
 	}
 
-
 	private void onData(@NotNull DataMessage message) {
 		assert this.state == State.JOINING_WAITING_DATA;
-		logger.debug("Node [{}] sends the data it is responsible for.", message.getSenderID());
+		logger.debug("Node [{}] sends the data it is responsible for: {}", message.getSenderID(), message.getRecords().keySet());
 
 		// TODO: store data --> all data?
 		storageManager.appendRecords(message.getRecords());
@@ -584,8 +574,8 @@ public class NodeActor extends UntypedActor {
 		// log
 		logger.info("Node [{}] is joining... nodes = {}", message.getSenderID(), nodes.keySet());
 
-
-		// TODO: remove the keys I am not responsible for
+		// clean keys
+		this.dropOldKeys();
 	}
 
 	private void onReJoin(ReJoinMessage message) {
@@ -605,8 +595,6 @@ public class NodeActor extends UntypedActor {
 
 		// remove it from my nodes
 		this.nodes.remove(message.getSenderID());
-
-		// log
 		logger.info("Node [{}] is leaving... nodes = {}", message.getSenderID(), nodes.keySet());
 	}
 
@@ -656,6 +644,30 @@ public class NodeActor extends UntypedActor {
 
 		// write-though cache
 		cache.put(key, item);
+	}
+
+	private void dropOldKeys() {
+
+		// TODO: check if this works
+		// seems like it is working
+
+		// load records from storage
+		final Map<Integer, VersionedItem> oldRecords = storageManager.readRecords();
+
+		// remove unwanted records
+		final Map<Integer, VersionedItem> records = oldRecords.entrySet().stream()
+			.filter(entry -> responsibleForKey(nodes.keySet(), entry.getKey(), SystemConstants.REPLICATION).contains(id))
+			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+		// log
+		logger.debug("Cleaning storage... nodes = {}, old keys = {}, new keys = {}", nodes.keySet(), oldRecords.keySet(), records.keySet());
+
+		// update storage
+		storageManager.writeRecords(records);
+
+		// update cache
+		cache.clear();
+		cache.putAll(records);
 	}
 
 	/**
