@@ -112,8 +112,6 @@ public class NodeActor extends UntypedActor {
 			put("actor", "Node [" + id + "]:");
 		}};
 		logger.setMDC(mdc);
-
-		// debug log
 		logger.info("Initialize node with initial state {}", startupCommand);
 	}
 
@@ -212,7 +210,6 @@ public class NodeActor extends UntypedActor {
 
 				// ready
 				this.state = State.READY;
-
 				logger.debug("PreStart(): storage initialized, move to {}", state);
 				break;
 			}
@@ -226,7 +223,6 @@ public class NodeActor extends UntypedActor {
 				// ask the list of nodes
 				getContext().actorSelection(remote).tell(new JoinRequestMessage(id), getSelf());
 				this.state = State.JOINING_WAITING_NODES;
-
 				logger.debug("PreStart(): storage initialized, ask to join to [{}], move to {}", remote, state);
 				break;
 			}
@@ -237,7 +233,6 @@ public class NodeActor extends UntypedActor {
 				// ask nodes, in order to complete the recovery
 				getContext().actorSelection(remote).tell(new JoinRequestMessage(id), getSelf());
 				this.state = State.RECOVERING_WAITING_NODES;
-
 				logger.debug("PreStart(): ask nodes to [{}], move to {}", remote, state);
 				break;
 			}
@@ -381,7 +376,6 @@ public class NodeActor extends UntypedActor {
 				// now I am ready
 				this.state = State.READY;
 				logger.info("[RECOVERY] Recovery completed, state = {}, nodes = {}", state, nodes.keySet());
-
 				break;
 			}
 		}
@@ -408,9 +402,7 @@ public class NodeActor extends UntypedActor {
 			// ask the responsible nodes for the key
 			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, SystemConstants.REPLICATION);
 			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
-
 			logger.info("[READ] A client requests key [{}]... asking nodes {} of {}", key, responsible, nodes.keySet());
-
 
 			// TODO: set timeout to cleanup old requests
 		}
@@ -463,7 +455,6 @@ public class NodeActor extends UntypedActor {
 		logger.debug("[READ] Read request from node [{}] for key [{}]: reply value {}",
 			message.getSenderID(), message.getKey(), value);
 	}
-
 
 	private void onWriteRequest(WriteRequest message) {
 
@@ -557,7 +548,6 @@ public class NodeActor extends UntypedActor {
 		storageManager.appendRecords(message.getRecords());
 		cache.putAll(message.getRecords());
 
-
 		// announce everybody that I am part of the system
 		multicast(new JoinMessage(id));
 
@@ -570,8 +560,6 @@ public class NodeActor extends UntypedActor {
 
 		// add the node to my list
 		this.nodes.put(message.getSenderID(), getSender());
-
-		// log
 		logger.info("Node [{}] is joining... nodes = {}", message.getSenderID(), nodes.keySet());
 
 		// clean keys
@@ -581,14 +569,9 @@ public class NodeActor extends UntypedActor {
 	private void onReJoin(ReJoinMessage message) {
 
 		// update the reference for the crashed node
-		// this is needed because Akka gives to the node a different reference
-		// if started again after a crash
+		// this is needed because Akka gives to the node a different reference if started again after a crash
 		this.nodes.put(message.getSenderID(), getSender());
-
-		// log
 		logger.warning("Node [{}] is re-joining after a crash... nodes = {}", message.getSenderID(), nodes.keySet());
-
-		// TODO: here I do NOT need to update the keys, right???
 	}
 
 	private void onLeave(LeaveMessage message) {
