@@ -5,7 +5,6 @@ import akka.event.LoggingAdapter;
 import akka.pattern.Patterns;
 import akka.util.Timeout;
 import it.unitn.ds1.messages.client.ClientOperationErrorResponse;
-import it.unitn.ds1.messages.client.ClientReadResponse;
 import it.unitn.ds1.messages.client.ClientUpdateRequest;
 import it.unitn.ds1.messages.client.ClientUpdateResponse;
 import scala.concurrent.Await;
@@ -32,9 +31,7 @@ public final class UpdateCommand extends BaseCommand {
 
 	@Override
 	protected void command(ActorSelection actor, LoggingAdapter logger) throws Exception {
-
-		// log the request
-		logger.info("Request update of key {} with value \"{}\"...", key, value);
+		logger.info("[CLIENT] Update key [{}] with value \"{}\" on node [{}]...", key, value, getRemote());
 
 		// send the command to the actor
 		final Timeout timeout = new Timeout(CLIENT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -56,7 +53,7 @@ public final class UpdateCommand extends BaseCommand {
 			final ClientUpdateResponse result = (ClientUpdateResponse) message;
 
 			// log the result
-			logger.info("Actor [{}] replies... value of key ({}) has been updated (value: \"{}\", version: {})",
+			logger.info("[CLIENT] Actor [{}] replies: key [{}] has been updated (value: \"{}\", version: {})",
 				result.getSenderID(), result.getKey(), result.getVersionedItem().getValue(), result.getVersionedItem().getVersion());
 		}
 

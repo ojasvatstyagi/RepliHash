@@ -64,27 +64,11 @@ public class Node {
 	}
 
 	/**
-	 * Validate quorum parameters defined at compile time.
-	 * @return True if parameters are correct, false otherwise.
-	 */
-	private static boolean validateQuorumParameters() {
-		return SystemConstants.READ_QUORUM + SystemConstants.WRITE_QUORUM > SystemConstants.REPLICATION;
-	}
-
-
-	/**
 	 * Entry point.
 	 *
 	 * @param args Command line arguments.
 	 */
 	public static void main(String[] args) {
-
-		// make sure that quorum parameter are right
-		if (!validateQuorumParameters()) {
-			System.err.println("Wrong quorum parameters. \"(ReadQuorum + WriteQuorum) > NumberOfReplicas\" must hold.\n" +
-				"Parameters must be corrected in source code.");
-			System.exit(3);
-		}
 
 		// check the command line arguments
 		if (args.length < 1) {

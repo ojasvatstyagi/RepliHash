@@ -29,9 +29,7 @@ public final class ReadCommand extends BaseCommand {
 
 	@Override
 	protected void command(ActorSelection actor, LoggingAdapter logger) throws Exception {
-
-		// log the request
-		logger.info("Requesting key {}...", key);
+		logger.info("[CLIENT] Read key [{}] from node [{}]...", key, getRemote());
 
 		// send the command to the actor
 		final Timeout timeout = new Timeout(CLIENT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -54,10 +52,10 @@ public final class ReadCommand extends BaseCommand {
 
 			// log the result
 			if (result.keyFound()) {
-				logger.info("Actor [{}] replies... value of key ({}) is \"{}\"",
+				logger.info("[CLIENT] Actor [{}] replies: value for key [{}] is \"{}\"",
 					result.getSenderID(), result.getKey(), result.getValue());
 			} else {
-				logger.warning("Actor [{}] replies... key ({}) was NOT FOUND on the system",
+				logger.warning("[CLIENT] Actor [{}] replies: key [{}] was NOT FOUND",
 					result.getSenderID(), result.getKey());
 			}
 		}

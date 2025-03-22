@@ -16,7 +16,7 @@ import java.util.concurrent.TimeoutException;
  * Commands that extend this class can be used inside a CLI.
  */
 @SuppressWarnings("WeakerAccess")
-public abstract class BaseCommand {
+abstract class BaseCommand {
 
 	// internal hidden variables
 	private final ActorSystem system;
@@ -29,7 +29,7 @@ public abstract class BaseCommand {
 	 * @param ip   IP for the target Actor.
 	 * @param port TCP port of the target Actor.
 	 */
-	public BaseCommand(String ip, String port) {
+	protected BaseCommand(String ip, String port) {
 
 		// initialize Akka
 		final Config config = ConfigFactory.load();
@@ -40,6 +40,13 @@ public abstract class BaseCommand {
 
 		// construct reference to the remote actor
 		this.remote = String.format("akka.tcp://%s@%s:%s/user/%s", SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
+	}
+
+	/**
+	 * @return Return the URL used to contact the coordinator for this request.
+	 */
+	protected final String getRemote() {
+		return remote;
 	}
 
 	/**
@@ -54,9 +61,9 @@ public abstract class BaseCommand {
 		try {
 			command(targetActor, logger);
 		} catch (TimeoutException e) {
-			logger.error("Timeout error: the node is not replying...");
+			logger.error("[CLIENT] Timeout error: the node did not reply");
 		} catch (Exception e) {
-			logger.error(e, "The command has failed with the following error: \"{}\"", e.getMessage());
+			logger.error(e, "[CLIENT] The command failed with the following error: \"{}\"", e.getMessage());
 		}
 
 		// after the command, exit
