@@ -97,19 +97,16 @@ public class FileStorageManager implements StorageManager {
 	public void appendRecord(int key, @NotNull VersionedItem versionedItem) {
 
 		try {
-			Map<Integer, VersionedItem> records = readRecords();
+			Map<Integer, VersionedItem> fileRecords = readRecords();
 			CSVPrinter csvFilePrinter = getFilePrinter();
 
-			for (Map.Entry<Integer, VersionedItem> record : records.entrySet()) {
+			updateRecordMap(fileRecords, key, versionedItem);
 
-				Integer fileKey = record.getKey();
-
-				if (!(fileKey == key)) { // don't copy the record that has to be appended
-					csvFilePrinter.printRecord(toCsvRecord(record));
-				}
+			// save updated map
+			for (Map.Entry<Integer, VersionedItem> record : fileRecords.entrySet()) {
+				csvFilePrinter.printRecord(toCsvRecord(record));
 			}
-			// append new record
-			csvFilePrinter.printRecord(toCsvRecord(key, versionedItem));
+
 			csvFilePrinter.close();
 
 		} catch (IOException e) {
@@ -125,18 +122,16 @@ public class FileStorageManager implements StorageManager {
 			Map<Integer, VersionedItem> fileRecords = readRecords();
 			CSVPrinter csvFilePrinter = getFilePrinter();
 
-			for (Map.Entry<Integer, VersionedItem> fileRecord : fileRecords.entrySet()) {
-
-				Integer fileKey = fileRecord.getKey();
-				if (!records.containsKey(fileKey)) { // don't copy the records that has to be appended
-					csvFilePrinter.printRecord(toCsvRecord(fileRecord));
-				}
-			}
-
-			// append new records
+			// update map with new records
 			for (Map.Entry<Integer, VersionedItem> record : records.entrySet()) {
-				csvFilePrinter.printRecord(toCsvRecord(record));
+				updateRecordMap(fileRecords, record.getKey(), record.getValue());
 			}
+
+			// save updated map
+			for (Map.Entry<Integer, VersionedItem> fileRecord : fileRecords.entrySet()) {
+				csvFilePrinter.printRecord(toCsvRecord(fileRecord));
+			}
+
 			csvFilePrinter.close();
 
 		} catch (IOException e) {
@@ -216,6 +211,32 @@ public class FileStorageManager implements StorageManager {
 	/* -----
 	 * Utils
 	 ----- */
+
+	/**
+	 * Add a record to record map according to some criteria:
+	 * 1. If record is not in the record map, add it
+	 * 2. If record is already in the record map, substitute the old record only if this one
+	 * as a lower or equal version than the new record. Otherwise keep the old record.
+	 *
+	 * @param fileRecords The record map to update
+	 * @param key         The key of the record to add
+	 * @param newRecord   The data of the record to add
+	 */
+	private void updateRecordMap(Map<Integer, VersionedItem> fileRecords, Integer key, VersionedItem newRecord) {
+
+		if (fileRecords.containsKey(key)) {
+
+			VersionedItem fileRecord = fileRecords.get(key);
+
+			// Check if record to append has a greater version than the local record
+			// Otherwise local record will be kept
+			if (fileRecord.getVersion() <= newRecord.getVersion()) {
+				fileRecords.put(key, newRecord);
+			}
+		} else {
+			fileRecords.put(key, newRecord);
+		}
+	}
 
 	private List<String> toCsvRecord(int key, @NotNull VersionedItem versionedItem) {
 		List<String> csvRecord = new ArrayList<>();

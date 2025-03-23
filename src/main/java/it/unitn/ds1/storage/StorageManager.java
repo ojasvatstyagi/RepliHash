@@ -31,7 +31,8 @@ public interface StorageManager {
 
 	/**
 	 * Add a record into the storage.
-	 * If record already exists, it will be overwritten.
+	 * If a record already exists and has a lower or the same version, it will be overwritten.
+	 * Otherwise the more recent version will be kept.
 	 *
 	 * @param key           key of the record
 	 * @param versionedItem record
@@ -42,7 +43,8 @@ public interface StorageManager {
 
 	/**
 	 * Add records into the storage.
-	 * If a record already exists, it will be overwritten.
+	 * If a record already exists and has a lower or the same version, it will be overwritten.
+	 * Otherwise the more recent version will be kept.
 	 *
 	 * @param records records to append
 	 * @throws ReadException  thrown if any error during reading occur (IOException, bad file format, ...)

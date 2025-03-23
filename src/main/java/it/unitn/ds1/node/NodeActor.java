@@ -19,10 +19,7 @@ import scala.concurrent.duration.Duration;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -188,6 +185,42 @@ public class NodeActor extends UntypedActor {
 	}
 
 	/**
+	 * Return the Ids of the replicas that would be responsible for current node's keys
+	 * in the case that this node would leave the network.
+	 *
+	 * @param ids  Set of all IDs in the system.
+	 * @param myID My ID.
+	 * @return The ID of the replica.
+	 */
+	@NotNull
+	private static Set<Integer> nextResponsibleReplicasForLeaving(@NotNull Set<Integer> ids, int myID) {
+
+		Set<Integer> nextReplicas = new HashSet<>();
+		List<Integer> idsList = asSortedList(ids);
+
+		int currentNodeIndex = idsList.indexOf(myID);
+
+		// get the next ReplicationNumber-th replicas after the current node
+		for (int i = 1; i <= SystemConstants.REPLICATION; i++) {
+
+			int nextReplicaIndex = ((currentNodeIndex + i) % idsList.size());
+			int nextReplica = idsList.get(nextReplicaIndex);
+
+			if (nextReplica != myID) { // avoid to add current node if it is leaving
+				nextReplicas.add(nextReplica);
+			}
+		}
+
+		return nextReplicas;
+	}
+
+	private static List<Integer> asSortedList(Set<Integer> collection) {
+		List<Integer> list = new ArrayList<>(collection);
+		java.util.Collections.sort(list);
+		return list;
+	}
+
+	/**
 	 * Return the IDs responsible for the given key.
 	 *
 	 * @param ids All IDs.
@@ -280,14 +313,16 @@ public class NodeActor extends UntypedActor {
 			onWriteRequest((WriteRequest) message);
 		} else if (message instanceof ReadResponse) {
 			onReadResponse((ReadResponse) message);
-		} else if (message instanceof DataMessage) {
-			onData((DataMessage) message);
+		} else if (message instanceof JoinDataMessage) {
+			onJoinData((JoinDataMessage) message);
 		} else if (message instanceof JoinMessage) {
 			onJoin((JoinMessage) message);
 		} else if (message instanceof ReJoinMessage) {
 			onReJoin((ReJoinMessage) message);
 		} else if (message instanceof LeaveMessage) {
 			onLeave((LeaveMessage) message);
+		} else if (message instanceof LeaveDataMessage) {
+			onLeaveData((LeaveDataMessage) message);
 		} else if (message instanceof TimeoutMessage) {
 			onRequestTimeout((TimeoutMessage) message);
 		} else {
@@ -322,7 +357,7 @@ public class NodeActor extends UntypedActor {
 			logger.debug("Node [{}] asks my data. Sending keys: {}", message.getSenderID(), records.keySet());
 
 			// send back the data
-			reply(new DataMessage(id, records));
+			reply(new JoinDataMessage(id, records));
 		}
 
 		// I am waiting for the data, cannot reply
@@ -335,7 +370,15 @@ public class NodeActor extends UntypedActor {
 	private void onLeaveRequest() {
 		logger.warning("[LEAVE] A Client asks me to leave... sending goodbye message");
 
-		// TODO: do stuff, exit protocol
+		// TODO: do stuff, exit protocol --> is right?
+
+		// send my data to next replicas who are responsible for
+		Set<Integer> replicaIds = nextResponsibleReplicasForLeaving(nodes.keySet(), id);
+
+		// send node's local storage to the future replicas that will be responsible for its keys
+		for (int replicaId : replicaIds) {
+			nodes.get(replicaId).tell(new LeaveDataMessage(id, storageManager.readRecords()), getSelf());
+		}
 
 		// inform all nodes that I am leaving
 		multicast(new LeaveMessage(id));
@@ -600,7 +643,7 @@ public class NodeActor extends UntypedActor {
 		}
 	}
 
-	private void onData(@NotNull DataMessage message) {
+	private void onJoinData(@NotNull JoinDataMessage message) {
 		assert this.state == State.JOINING_WAITING_DATA;
 		logger.debug("Node [{}] sends the data it is responsible for: {}", message.getSenderID(), message.getRecords().keySet());
 
@@ -639,6 +682,15 @@ public class NodeActor extends UntypedActor {
 		// remove it from my nodes
 		this.nodes.remove(message.getSenderID());
 		logger.info("Node [{}] is leaving... nodes = {}", message.getSenderID(), nodes.keySet());
+	}
+
+	private void onLeaveData(LeaveDataMessage message) {
+
+		logger.info("Node [{}] has send some data. It will be added to local storage", message.getSenderID());
+
+		// some node is leaving and it gave to me all its data as legacy
+		storageManager.appendRecords(message.getRecords());
+		cache.putAll(message.getRecords());
 	}
 
 	/**
