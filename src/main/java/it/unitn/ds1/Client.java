@@ -1,10 +1,10 @@
 package it.unitn.ds1;
 
-import it.unitn.ds1.client.LeaveCommand;
-import it.unitn.ds1.client.ReadCommand;
-import it.unitn.ds1.client.UpdateCommand;
+import it.unitn.ds1.client.CommandExecutor;
+import it.unitn.ds1.client.commands.LeaveCommand;
+import it.unitn.ds1.client.commands.ReadCommand;
+import it.unitn.ds1.client.commands.UpdateCommand;
 import org.apache.commons.validator.routines.InetAddressValidator;
-
 
 /**
  * Client.
@@ -103,7 +103,8 @@ public class Client {
 				}
 
 				// ask the node to leave
-				leave(ip, port);
+				final int exitCode = new CommandExecutor(ip, port).execute(new LeaveCommand());
+				System.exit(exitCode);
 				break;
 			}
 
@@ -119,7 +120,8 @@ public class Client {
 				final int key = parseIntOrExit(args[3]);
 
 				// ask the value for the key
-				read(ip, port, key);
+				final int exitCode = new CommandExecutor(ip, port).execute(new ReadCommand(key));
+				System.exit(exitCode);
 				break;
 			}
 
@@ -141,7 +143,8 @@ public class Client {
 				}
 
 				// ask record update
-				update(ip, port, key, value);
+				final int exitCode = new CommandExecutor(ip, port).execute(new UpdateCommand(key, value));
+				System.exit(exitCode);
 				break;
 			}
 
@@ -150,18 +153,6 @@ public class Client {
 				printHelpAndExit();
 			}
 		}
-	}
-
-	private static void leave(String ip, String port) {
-		new LeaveCommand(ip, port).execute();
-	}
-
-	private static void read(String ip, String port, int key) {
-		new ReadCommand(ip, port, key).execute();
-	}
-
-	private static void update(String ip, String port, int key, String value) {
-		new UpdateCommand(ip, port, key, value).execute();
 	}
 
 }

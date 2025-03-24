@@ -1,4 +1,4 @@
-package it.unitn.ds1.client;
+package it.unitn.ds1.client.commands;
 
 import akka.actor.ActorSelection;
 import akka.event.LoggingAdapter;
@@ -17,19 +17,18 @@ import static it.unitn.ds1.SystemConstants.CLIENT_TIMEOUT_SECONDS;
 /**
  * Command used to read the value of a key from the system.
  */
-public final class ReadCommand extends BaseCommand {
+public final class ReadCommand implements Command {
 
 	// internal variables
 	private final int key;
 
-	public ReadCommand(String ip, String port, int key) {
-		super(ip, port);
+	public ReadCommand(int key) {
 		this.key = key;
 	}
 
 	@Override
-	protected void command(ActorSelection actor, LoggingAdapter logger) throws Exception {
-		logger.info("[CLIENT] Read key [{}] from node [{}]...", key, getRemote());
+	public boolean run(ActorSelection actor, String remote, LoggingAdapter logger) throws Exception {
+		logger.info("[CLIENT] Read key [{}] from node [{}]...", key, remote);
 
 		// send the command to the actor
 		final Timeout timeout = new Timeout(CLIENT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -39,18 +38,22 @@ public final class ReadCommand extends BaseCommand {
 		final Object message = Await.result(future, timeout.duration());
 		assert message instanceof ClientReadResponse || message instanceof ClientOperationErrorResponse;
 
-		if (message instanceof ClientOperationErrorResponse) { // an error has occurred
+		// an error has occurred
+		if (message instanceof ClientOperationErrorResponse) {
 
+			// log the cause of the error
 			final ClientOperationErrorResponse result = (ClientOperationErrorResponse) message;
-
 			logger.error("Actor [{}] replies... read operation has failed. Reason: \"{}\"",
 				result.getSenderID(), result.getMessage());
 
-		} else {
+			return false;
+		}
 
-			final ClientReadResponse result = (ClientReadResponse) message;
+		// success
+		else {
 
 			// log the result
+			final ClientReadResponse result = (ClientReadResponse) message;
 			if (result.keyFound()) {
 				logger.info("[CLIENT] Actor [{}] replies: value for key [{}] is \"{}\"",
 					result.getSenderID(), result.getKey(), result.getValue());
@@ -58,9 +61,9 @@ public final class ReadCommand extends BaseCommand {
 				logger.warning("[CLIENT] Actor [{}] replies: key [{}] was NOT FOUND",
 					result.getSenderID(), result.getKey());
 			}
-		}
 
-		// TODO: return some exit code???
+			return true;
+		}
 	}
 
 }

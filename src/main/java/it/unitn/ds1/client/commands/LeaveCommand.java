@@ -1,10 +1,9 @@
-package it.unitn.ds1.client;
+package it.unitn.ds1.client.commands;
 
 import akka.actor.ActorSelection;
 import akka.event.LoggingAdapter;
 import akka.pattern.Patterns;
 import akka.util.Timeout;
-import it.unitn.ds1.SystemConstants;
 import it.unitn.ds1.messages.client.ClientLeaveRequest;
 import it.unitn.ds1.messages.client.ClientLeaveResponse;
 import scala.concurrent.Await;
@@ -17,15 +16,11 @@ import static it.unitn.ds1.SystemConstants.CLIENT_TIMEOUT_SECONDS;
 /**
  * Command to instruct the target actor to leave the system.
  */
-public final class LeaveCommand extends BaseCommand {
-
-	public LeaveCommand(String ip, String port) {
-		super(ip, port);
-	}
+public final class LeaveCommand implements Command {
 
 	@Override
-	protected void command(ActorSelection actor, LoggingAdapter logger) throws Exception {
-		logger.info("[CLIENT] Asking node [{}] to leave...", getRemote());
+	public boolean run(ActorSelection actor, String remote, LoggingAdapter logger) throws Exception {
+		logger.info("[CLIENT] Asking node [{}] to leave...", remote);
 
 		// instruct the target actor to leave the system
 		final Timeout timeout = new Timeout(CLIENT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -37,6 +32,8 @@ public final class LeaveCommand extends BaseCommand {
 
 		// log the result
 		logger.info("[CLIENT] Node [{} - {}] has successful left the system",
-			((ClientLeaveResponse) message).getSenderID(), getRemote());
+			((ClientLeaveResponse) message).getSenderID(), remote);
+
+		return true;
 	}
 }
