@@ -27,7 +27,7 @@ public final class ReadCommand implements Command {
 	}
 
 	@Override
-	public boolean run(ActorSelection actor, String remote, LoggingAdapter logger) throws Exception {
+	public String run(ActorSelection actor, String remote, LoggingAdapter logger) throws Exception {
 		logger.info("[CLIENT] Read key [{}] from node [{}]...", key, remote);
 
 		// send the command to the actor
@@ -46,7 +46,7 @@ public final class ReadCommand implements Command {
 			logger.error("Actor [{}] replies... read operation has failed. Reason: \"{}\"",
 				result.getSenderID(), result.getMessage());
 
-			return false;
+			return null;
 		}
 
 		// success
@@ -62,7 +62,7 @@ public final class ReadCommand implements Command {
 					result.getSenderID(), result.getKey());
 			}
 
-			return true;
+			return result.getValue();
 		}
 	}
 

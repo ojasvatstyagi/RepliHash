@@ -48,8 +48,8 @@ public final class CommandExecutor {
 		// execute the command
 		int result;
 		try {
-			boolean success = command.run(targetActor, remote, Logging.getLogger(system, Command.class));
-			result = success ? 0 : 1;
+			final Object response = command.run(targetActor, remote, Logging.getLogger(system, Command.class));
+			result = response != null ? 0 : 1;
 		} catch (TimeoutException e) {
 			logger.error("[CLIENT] Timeout error: the node did not reply");
 			result = 55;

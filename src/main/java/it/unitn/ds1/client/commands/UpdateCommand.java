@@ -7,6 +7,7 @@ import akka.util.Timeout;
 import it.unitn.ds1.messages.client.ClientOperationErrorResponse;
 import it.unitn.ds1.messages.client.ClientUpdateRequest;
 import it.unitn.ds1.messages.client.ClientUpdateResponse;
+import it.unitn.ds1.storage.VersionedItem;
 import scala.concurrent.Await;
 import scala.concurrent.Future;
 
@@ -29,7 +30,7 @@ public final class UpdateCommand implements Command {
 	}
 
 	@Override
-	public boolean run(ActorSelection actor, String remote, LoggingAdapter logger) throws Exception {
+	public VersionedItem run(ActorSelection actor, String remote, LoggingAdapter logger) throws Exception {
 		logger.info("[CLIENT] Update key [{}] with value \"{}\" on node [{}]...", key, value, remote);
 
 		// send the command to the actor
@@ -48,8 +49,7 @@ public final class UpdateCommand implements Command {
 			logger.error("Actor [{}] replies... update operation has failed. Reason: \"{}\"",
 				result.getSenderID(), result.getMessage());
 
-			return false;
-
+			return null;
 		}
 
 		// success
@@ -60,7 +60,7 @@ public final class UpdateCommand implements Command {
 			logger.info("[CLIENT] Actor [{}] replies: key [{}] has been updated (value: \"{}\", version: {})",
 				result.getSenderID(), result.getKey(), result.getVersionedItem().getValue(), result.getVersionedItem().getVersion());
 
-			return true;
+			return result.getVersionedItem();
 		}
 	}
 

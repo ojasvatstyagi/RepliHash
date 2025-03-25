@@ -19,7 +19,7 @@ import static it.unitn.ds1.SystemConstants.CLIENT_TIMEOUT_SECONDS;
 public final class LeaveCommand implements Command {
 
 	@Override
-	public boolean run(ActorSelection actor, String remote, LoggingAdapter logger) throws Exception {
+	public Boolean run(ActorSelection actor, String remote, LoggingAdapter logger) throws Exception {
 		logger.info("[CLIENT] Asking node [{}] to leave...", remote);
 
 		// instruct the target actor to leave the system
