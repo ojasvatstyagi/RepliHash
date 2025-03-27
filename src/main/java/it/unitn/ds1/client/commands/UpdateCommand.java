@@ -1,4 +1,4 @@
-package it.unitn.ds1.client;
+package it.unitn.ds1.client.commands;
 
 import akka.actor.ActorSelection;
 import akka.event.LoggingAdapter;
@@ -7,6 +7,7 @@ import akka.util.Timeout;
 import it.unitn.ds1.messages.client.ClientOperationErrorResponse;
 import it.unitn.ds1.messages.client.ClientUpdateRequest;
 import it.unitn.ds1.messages.client.ClientUpdateResponse;
+import it.unitn.ds1.storage.VersionedItem;
 import scala.concurrent.Await;
 import scala.concurrent.Future;
 
@@ -17,21 +18,20 @@ import static it.unitn.ds1.SystemConstants.CLIENT_TIMEOUT_SECONDS;
 /**
  * Command used to update a record in the system.
  */
-public final class UpdateCommand extends BaseCommand {
+public final class UpdateCommand implements Command {
 
 	// internal variables
 	private final int key;
 	private final String value;
 
-	public UpdateCommand(String ip, String port, int key, String value) {
-		super(ip, port);
+	public UpdateCommand(int key, String value) {
 		this.key = key;
 		this.value = value;
 	}
 
 	@Override
-	protected void command(ActorSelection actor, LoggingAdapter logger) throws Exception {
-		logger.info("[CLIENT] Update key [{}] with value \"{}\" on node [{}]...", key, value, getRemote());
+	public VersionedItem run(ActorSelection actor, String remote, LoggingAdapter logger) throws Exception {
+		logger.info("[CLIENT] Update key [{}] with value \"{}\" on node [{}]...", key, value, remote);
 
 		// send the command to the actor
 		final Timeout timeout = new Timeout(CLIENT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -41,23 +41,27 @@ public final class UpdateCommand extends BaseCommand {
 		final Object message = Await.result(future, timeout.duration());
 		assert message instanceof ClientUpdateResponse || message instanceof ClientOperationErrorResponse;
 
-		if (message instanceof ClientOperationErrorResponse) { // an error has occurred
+		// an error has occurred
+		if (message instanceof ClientOperationErrorResponse) {
 
+			// log the cause of the error
 			final ClientOperationErrorResponse result = (ClientOperationErrorResponse) message;
-
 			logger.error("Actor [{}] replies... update operation has failed. Reason: \"{}\"",
 				result.getSenderID(), result.getMessage());
 
-		} else {
-
-			final ClientUpdateResponse result = (ClientUpdateResponse) message;
-
-			// log the result
-			logger.info("[CLIENT] Actor [{}] replies: key [{}] has been updated (value: \"{}\", version: {})",
-				result.getSenderID(), result.getKey(), result.getVersionedItem().getValue(), result.getVersionedItem().getVersion());
+			return null;
 		}
 
-		// TODO: return some exit code???
+		// success
+		else {
+
+			// log the result
+			final ClientUpdateResponse result = (ClientUpdateResponse) message;
+			logger.info("[CLIENT] Actor [{}] replies: key [{}] has been updated (value: \"{}\", version: {})",
+				result.getSenderID(), result.getKey(), result.getVersionedItem().getValue(), result.getVersionedItem().getVersion());
+
+			return result.getVersionedItem();
+		}
 	}
 
 }
