@@ -7,7 +7,6 @@ import akka.actor.UntypedActor;
 import akka.event.DiagnosticLoggingAdapter;
 import akka.event.Logging;
 import akka.japi.Creator;
-import it.unitn.ds1.SystemConstants;
 import it.unitn.ds1.messages.*;
 import it.unitn.ds1.messages.client.*;
 import it.unitn.ds1.storage.FileStorageManager;
@@ -68,6 +67,10 @@ public class NodeActor extends UntypedActor {
 	// Maps the requestID to the timer
 	private final Map<Integer, Cancellable> requestsTimers;
 
+	// configuration
+	private final int readQuorum;
+	private final int writeQuorum;
+	private final int replication;
 
 	// Unique incremental identifier for each client request
 	// The counter is to be considered unique only inside the same node
@@ -85,14 +88,18 @@ public class NodeActor extends UntypedActor {
 	 *                       This parameter is not required for the bootstrap node.
 	 */
 	@SuppressWarnings("ConstantConditions")
-	private NodeActor(int id, @NotNull String storagePath, @NotNull StartupCommand startupCommand, @Nullable String remote) throws IOException {
+	private NodeActor(int id, @NotNull String storagePath, @NotNull StartupCommand startupCommand, @Nullable String remote,
+					  int readQuorum, int writeQuorum, int replication) throws IOException {
 
 		// at start, check that the constants R, W and N are correct
-		assert SystemConstants.READ_QUORUM > 0 : "Read Quorum must be positive";
-		assert SystemConstants.WRITE_QUORUM > 0 : "Write Quorum must be positive";
-		assert SystemConstants.REPLICATION > 0 : "Replication factor must be positive";
-		assert SystemConstants.READ_QUORUM + SystemConstants.WRITE_QUORUM > SystemConstants.REPLICATION :
-			"Condition R + W > N must hold to guarantee consistency in the system";
+		assert readQuorum > 0 : "Read Quorum must be positive";
+		assert writeQuorum > 0 : "Write Quorum must be positive";
+		assert replication > 0 : "Replication factor must be positive";
+		assert readQuorum + writeQuorum > replication : "Condition R + W > N must hold to guarantee consistency in the system";
+
+		this.readQuorum = readQuorum;
+		this.writeQuorum = writeQuorum;
+		this.replication = replication;
 
 		// initialize values
 		this.id = id;
@@ -128,13 +135,14 @@ public class NodeActor extends UntypedActor {
 	 * Create Props for a node that should bootstrap the system.
 	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
 	 */
-	public static Props bootstrap(final int id, @NotNull final String storagePath) {
+	public static Props bootstrap(final int id, @NotNull final String storagePath,
+								  int readQuorum, int writeQuorum, int replication) {
 		return Props.create(new Creator<NodeActor>() {
 			private static final long serialVersionUID = 1L;
 
 			@Override
 			public NodeActor create() throws Exception {
-				return new NodeActor(id, storagePath, StartupCommand.BOOTSTRAP, null);
+				return new NodeActor(id, storagePath, StartupCommand.BOOTSTRAP, null, readQuorum, writeQuorum, replication);
 			}
 		});
 	}
@@ -143,13 +151,14 @@ public class NodeActor extends UntypedActor {
 	 * Create Props for a new node that is willing to join the system.
 	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
 	 */
-	public static Props join(final int id, @NotNull final String storagePath, String remote) {
+	public static Props join(final int id, @NotNull final String storagePath, String remote,
+							 int readQuorum, int writeQuorum, int replication) {
 		return Props.create(new Creator<NodeActor>() {
 			private static final long serialVersionUID = 1L;
 
 			@Override
 			public NodeActor create() throws Exception {
-				return new NodeActor(id, storagePath, StartupCommand.JOIN, remote);
+				return new NodeActor(id, storagePath, StartupCommand.JOIN, remote, readQuorum, writeQuorum, replication);
 			}
 		});
 	}
@@ -158,13 +167,14 @@ public class NodeActor extends UntypedActor {
 	 * Create Props for a new node that is willing to join back the system after a crash.
 	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
 	 */
-	public static Props recover(final int id, @NotNull final String storagePath, String remote) {
+	public static Props recover(final int id, @NotNull final String storagePath, String remote,
+								int readQuorum, int writeQuorum, int replication) {
 		return Props.create(new Creator<NodeActor>() {
 			private static final long serialVersionUID = 1L;
 
 			@Override
 			public NodeActor create() throws Exception {
-				return new NodeActor(id, storagePath, StartupCommand.RECOVER, remote);
+				return new NodeActor(id, storagePath, StartupCommand.RECOVER, remote, readQuorum, writeQuorum, replication);
 			}
 		});
 	}
@@ -182,36 +192,6 @@ public class NodeActor extends UntypedActor {
 			.filter(key -> key > myID)
 			.findFirst()
 			.orElse(Collections.min(ids));
-	}
-
-	/**
-	 * Return the Ids of the replicas that would be responsible for current node's keys
-	 * in the case that this node would leave the network.
-	 *
-	 * @param ids  Set of all IDs in the system.
-	 * @param myID My ID.
-	 * @return The ID of the replica.
-	 */
-	@NotNull
-	private static Set<Integer> nextResponsibleReplicasForLeaving(@NotNull Set<Integer> ids, int myID) {
-
-		Set<Integer> nextReplicas = new HashSet<>();
-		List<Integer> idsList = asSortedList(ids);
-
-		int currentNodeIndex = idsList.indexOf(myID);
-
-		// get the next ReplicationNumber-th replicas after the current node
-		for (int i = 1; i <= SystemConstants.REPLICATION; i++) {
-
-			int nextReplicaIndex = ((currentNodeIndex + i) % idsList.size());
-			int nextReplica = idsList.get(nextReplicaIndex);
-
-			if (nextReplica != myID) { // avoid to add current node if it is leaving
-				nextReplicas.add(nextReplica);
-			}
-		}
-
-		return nextReplicas;
 	}
 
 	private static List<Integer> asSortedList(Set<Integer> collection) {
@@ -235,6 +215,37 @@ public class NodeActor extends UntypedActor {
 			if (o1 < key && o2 >= key) return +1;
 			else return o1 - o2;
 		}).limit(n).collect(Collectors.toSet());
+	}
+
+	/**
+	 * Return the Ids of the replicas that would be responsible for current node's keys
+	 * in the case that this node would leave the network.
+	 *
+	 * @param ids  Set of all IDs in the system.
+	 * @param myID My ID.
+	 * @return The ID of the replica.
+	 */
+	@NotNull
+	private Set<Integer> nextResponsibleReplicasForLeaving(@NotNull Set<Integer> ids, int myID) {
+
+		Set<Integer> nextReplicas = new HashSet<>();
+		List<Integer> idsList = asSortedList(ids);
+
+		int currentNodeIndex = idsList.indexOf(myID);
+
+		// get the next ReplicationNumber-th replicas after the current node
+		for (int i = 1; i <= replication; i++) {
+
+			int nextReplicaIndex = ((currentNodeIndex + i) % idsList.size());
+			int nextReplica = idsList.get(nextReplicaIndex);
+
+			// avoid to add current node if it is leaving
+			if (nextReplica != myID) {
+				nextReplicas.add(nextReplica);
+			}
+		}
+
+		return nextReplicas;
 	}
 
 	/**
@@ -443,28 +454,28 @@ public class NodeActor extends UntypedActor {
 		// extract the key to search
 		final int key = message.getKey();
 
-		if (SystemConstants.READ_QUORUM > nodes.size() || SystemConstants.REPLICATION > nodes.size()) {
-			logger.warning("[READ] A client requests key [{}]... but there are not enough nodes in the system: quorum={}, replication nodes={}, nodes={}",
-				key, SystemConstants.READ_QUORUM, SystemConstants.REPLICATION, nodes.size());
-
+		if (readQuorum > nodes.size() || replication > nodes.size()) {
+			logger.warning("[READ] A client requests key [{}]... but there are not enough nodes in the system: " +
+				"quorum={}, replication nodes={}, nodes={}", key, readQuorum, replication, nodes.size());
 
 			// inform client that read is impossible
-			getSender().tell(new ClientOperationErrorResponse(id, "Read operation is not possible because there aren't enough nodes in the network"), getSelf());
+			reply(new ClientOperationErrorResponse(id, "Read operation is not possible because there aren't enough nodes in the network"));
 
 		} else {
 
 			// store the read request to be able to process the responses
 			requestCount++;
-			readRequests.put(requestCount, new ReadRequestStatus(key, getSender(), SystemConstants.READ_QUORUM));
+			readRequests.put(requestCount, new ReadRequestStatus(key, getSender(), readQuorum));
 
 			// ask the responsible nodes for the key
-			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, SystemConstants.REPLICATION);
+			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, replication);
 			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
 			logger.info("[READ] A client requests key [{}]... asking nodes {} of {}", key, responsible, nodes.keySet());
 
 			// set a timeout within which reach the quorum
 			final TimeoutMessage timeoutMessage = new TimeoutMessage(id, requestCount);
-			Cancellable timer = getContext().system().scheduler().scheduleOnce(Duration.create(QUORUM_TIMEOUT_SECONDS, TimeUnit.SECONDS), getSelf(), timeoutMessage, getContext().system().dispatcher(), getSelf());
+			final Cancellable timer = getContext().system().scheduler().scheduleOnce(Duration.create(QUORUM_TIMEOUT_SECONDS,
+				TimeUnit.SECONDS), getSelf(), timeoutMessage, getContext().system().dispatcher(), getSelf());
 			requestsTimers.put(requestCount, timer);
 		}
 	}
@@ -477,27 +488,27 @@ public class NodeActor extends UntypedActor {
 		// TODO: this should be NOT replication, but READ / WRITE max ???
 
 		// get the nodes responsible for that key
-		if (SystemConstants.REPLICATION > nodes.size()) {
+		if (replication > nodes.size()) {
 			logger.warning("[UPDATE] A client requests to update key [{}]... but there are not enough nodes in the system: " +
-				"(replication={}, nodes={})", key, SystemConstants.REPLICATION, nodes.size());
+				"(replication={}, nodes={})", key, replication, nodes.size());
 
 			// inform client that update is impossible
-			getSender().tell(new ClientOperationErrorResponse(id, "Update operation is not possible because there aren't enough nodes in the network"), getSelf());
+			reply(new ClientOperationErrorResponse(id, "Update operation is not possible because there aren't enough nodes in the network"));
 
 		} else {
 
 			// store the update request to be able to process the responses
 			requestCount++;
-			writeRequests.put(requestCount, new WriteRequestStatus(key, message.getValue(), getSender(),
-				SystemConstants.READ_QUORUM, SystemConstants.WRITE_QUORUM));
+			writeRequests.put(requestCount, new WriteRequestStatus(key, message.getValue(), getSender(), readQuorum, writeQuorum));
 
 			// before update key, ask the responsible nodes for the key
-			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, SystemConstants.REPLICATION);
+			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, replication);
 			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
 
 			// set a timeout within which reach the quorum
 			final TimeoutMessage timeoutMessage = new TimeoutMessage(id, requestCount);
-			Cancellable timer = getContext().system().scheduler().scheduleOnce(Duration.create(QUORUM_TIMEOUT_SECONDS, TimeUnit.SECONDS), getSelf(), timeoutMessage, getContext().system().dispatcher(), getSelf());
+			final Cancellable timer = getContext().system().scheduler().scheduleOnce(Duration.create(QUORUM_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+				getSelf(), timeoutMessage, getContext().system().dispatcher(), getSelf());
 			requestsTimers.put(requestCount, timer);
 
 			logger.info("[UPDATE] A client requests to update key [{}]... asking nodes {} of {}", key, responsible, nodes.keySet());
@@ -595,7 +606,7 @@ public class NodeActor extends UntypedActor {
 					writeStatus.getSender().tell(new ClientUpdateResponse(id, writeStatus.getKey(), updatedRecord), getSelf());
 
 					// send write request to interested nodes (nodes responsible for that key)
-					final Set<Integer> responsible = responsibleForKey(nodes.keySet(), writeStatus.getKey(), SystemConstants.REPLICATION);
+					final Set<Integer> responsible = responsibleForKey(nodes.keySet(), writeStatus.getKey(), replication);
 					// TODO check if this is the right way to send an object
 					responsible.forEach(node -> nodes.get(node).tell(new WriteRequest(id, requestCount, writeStatus.getKey(), updatedRecord), getSelf()));
 
@@ -751,7 +762,7 @@ public class NodeActor extends UntypedActor {
 
 		// remove unwanted records
 		final Map<Integer, VersionedItem> records = oldRecords.entrySet().stream()
-			.filter(entry -> responsibleForKey(nodes.keySet(), entry.getKey(), SystemConstants.REPLICATION).contains(id))
+			.filter(entry -> responsibleForKey(nodes.keySet(), entry.getKey(), replication).contains(id))
 			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
 		// log

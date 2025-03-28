@@ -7,11 +7,11 @@ package it.unitn.ds1;
  */
 public class SystemConstants {
 
-	public static final int REPLICATION = 3;
-	public static final int READ_QUORUM = 2;
-	public static final int WRITE_QUORUM = 2;
-	public static final int QUORUM_TIMEOUT_SECONDS = 3;
+	static final int REPLICATION = 3;
+	static final int READ_QUORUM = 2;
+	static final int WRITE_QUORUM = 2;
 
+	public static final int QUORUM_TIMEOUT_SECONDS = 3;
 	public static final int CLIENT_TIMEOUT_SECONDS = 5;
 
 	/**

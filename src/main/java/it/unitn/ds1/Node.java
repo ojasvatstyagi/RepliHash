@@ -15,6 +15,7 @@ public class Node {
 	 * Key used in the configuration file to pass the ID for the Node to launch.
 	 */
 	private static final String CONFIG_NODE_ID = "node.id";
+
 	/**
 	 * Key used in the configuration file to indicate where the node data store should be created.
 	 */
@@ -155,7 +156,8 @@ public class Node {
 		// create a NodeActor of type "bootstrap" and add it to the system
 		final int id = config.getInt(CONFIG_NODE_ID);
 		final String storagePath = config.getString(CONFIG_STORAGE_PATH);
-		system.actorOf(NodeActor.bootstrap(id, storagePath), SystemConstants.ACTOR_NAME);
+		system.actorOf(NodeActor.bootstrap(id, storagePath, SystemConstants.READ_QUORUM,
+			SystemConstants.WRITE_QUORUM, SystemConstants.REPLICATION), SystemConstants.ACTOR_NAME);
 	}
 
 	/**
@@ -177,7 +179,8 @@ public class Node {
 		final String storagePath = config.getString(CONFIG_STORAGE_PATH);
 		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
 			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
-		system.actorOf(NodeActor.join(id, storagePath, remote), SystemConstants.ACTOR_NAME);
+		system.actorOf(NodeActor.join(id, storagePath, remote, SystemConstants.READ_QUORUM,
+			SystemConstants.WRITE_QUORUM, SystemConstants.REPLICATION), SystemConstants.ACTOR_NAME);
 	}
 
 	/**
@@ -199,7 +202,8 @@ public class Node {
 		final String storagePath = config.getString(CONFIG_STORAGE_PATH);
 		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
 			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
-		system.actorOf(NodeActor.recover(id, storagePath, remote), SystemConstants.ACTOR_NAME);
+		system.actorOf(NodeActor.recover(id, storagePath, remote, SystemConstants.READ_QUORUM,
+			SystemConstants.WRITE_QUORUM, SystemConstants.REPLICATION), SystemConstants.ACTOR_NAME);
 	}
 
 }
