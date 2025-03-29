@@ -18,7 +18,9 @@ import scala.concurrent.duration.Duration;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -48,7 +50,7 @@ public class NodeActor extends UntypedActor {
 
 	// Internal variable used to keep track of the other nodes in the system.
 	// NB: this map contains also myself!
-	private final Map<Integer, ActorRef> nodes;
+	private final Ring ring;
 
 	// Keep the data store in memory for higher efficiency.
 	// This cache will use a write-through strategy for simplicity and reliability.
@@ -87,7 +89,6 @@ public class NodeActor extends UntypedActor {
 	 * @param remote         Remote address of another actor to contact to leave the system.
 	 *                       This parameter is not required for the bootstrap node.
 	 */
-	@SuppressWarnings("ConstantConditions")
 	private NodeActor(int id, @NotNull String storagePath, @NotNull StartupCommand startupCommand, @Nullable String remote,
 					  int readQuorum, int writeQuorum, int replication) throws IOException {
 
@@ -109,9 +110,9 @@ public class NodeActor extends UntypedActor {
 		// initialize storage manager
 		this.storageManager = new FileStorageManager(storagePath, id);
 
-		// add myself to the map of nodes
-		this.nodes = new HashMap<>();
-		this.nodes.put(id, getSelf());
+		// initialize the ring
+		this.ring = new Ring(replication, id);
+		this.ring.addNode(id, getSelf());
 
 		// create empty cache
 		this.cache = new HashMap<>();
@@ -177,75 +178,6 @@ public class NodeActor extends UntypedActor {
 				return new NodeActor(id, storagePath, StartupCommand.RECOVER, remote, readQuorum, writeQuorum, replication);
 			}
 		});
-	}
-
-	/**
-	 * Return the ID of the next node in the ring.
-	 *
-	 * @param ids  Set of all IDs in the system.
-	 * @param myID My ID.
-	 * @return The ID of the next node in the ring.
-	 */
-	@NotNull
-	static Integer nextInTheRing(@NotNull Set<Integer> ids, int myID) {
-		return ids.stream()
-			.filter(key -> key > myID)
-			.findFirst()
-			.orElse(Collections.min(ids));
-	}
-
-	private static List<Integer> asSortedList(Set<Integer> collection) {
-		List<Integer> list = new ArrayList<>(collection);
-		java.util.Collections.sort(list);
-		return list;
-	}
-
-	/**
-	 * Return the IDs responsible for the given key.
-	 *
-	 * @param ids All IDs.
-	 * @param key Key.
-	 * @param n   Replication factor.
-	 * @return Set of responsible IDs.
-	 */
-	static Set<Integer> responsibleForKey(@NotNull Set<Integer> ids, int key, int n) {
-		return ids.stream().sorted((o1, o2) -> {
-			if (o1 >= key && o2 >= key) return o1 - o2;
-			if (o1 >= key && o2 < key) return -1;
-			if (o1 < key && o2 >= key) return +1;
-			else return o1 - o2;
-		}).limit(n).collect(Collectors.toSet());
-	}
-
-	/**
-	 * Return the Ids of the replicas that would be responsible for current node's keys
-	 * in the case that this node would leave the network.
-	 *
-	 * @param ids  Set of all IDs in the system.
-	 * @param myID My ID.
-	 * @return The ID of the replica.
-	 */
-	@NotNull
-	private Set<Integer> nextResponsibleReplicasForLeaving(@NotNull Set<Integer> ids, int myID) {
-
-		Set<Integer> nextReplicas = new HashSet<>();
-		List<Integer> idsList = asSortedList(ids);
-
-		int currentNodeIndex = idsList.indexOf(myID);
-
-		// get the next ReplicationNumber-th replicas after the current node
-		for (int i = 1; i <= replication; i++) {
-
-			int nextReplicaIndex = ((currentNodeIndex + i) % idsList.size());
-			int nextReplica = idsList.get(nextReplicaIndex);
-
-			// avoid to add current node if it is leaving
-			if (nextReplica != myID) {
-				nextReplicas.add(nextReplica);
-			}
-		}
-
-		return nextReplicas;
 	}
 
 	/**
@@ -345,10 +277,10 @@ public class NodeActor extends UntypedActor {
 
 		// I already have the nodes
 		if (state != State.JOINING_WAITING_NODES && state != State.RECOVERING_WAITING_NODES) {
-			logger.debug("Node [{}] asks to join the network... sending my nodes: {}", message.getSenderID(), nodes.keySet());
+			logger.debug("Node [{}] asks to join the network... sending my nodes: {}", message.getSenderID(), ring.getNodeIDs());
 
 			// send back the list of nodes
-			reply(new NodesListMessage(id, nodes));
+			reply(new NodesListMessage(id, ring.getNodes()));
 		}
 
 		// if I am not ready, ignore the message
@@ -384,11 +316,11 @@ public class NodeActor extends UntypedActor {
 		// TODO: do stuff, exit protocol --> is right?
 
 		// send my data to next replicas who are responsible for
-		Set<Integer> replicaIds = nextResponsibleReplicasForLeaving(nodes.keySet(), id);
+		final Set<Integer> replicaIDs = ring.nextResponsibleReplicasForLeaving();
 
 		// send node's local storage to the future replicas that will be responsible for its keys
-		for (int replicaId : replicaIds) {
-			nodes.get(replicaId).tell(new LeaveDataMessage(id, storageManager.readRecords()), getSelf());
+		for (int replicaId : replicaIDs) {
+			ring.getNode(replicaId).tell(new LeaveDataMessage(id, storageManager.readRecords()), getSelf());
 		}
 
 		// inform all nodes that I am leaving
@@ -409,21 +341,17 @@ public class NodeActor extends UntypedActor {
 		logger.debug("Node [{}] sends the list of nodes: {}", message.getSenderID(), message.getNodes().keySet());
 
 		// update my list of nodes
-		this.nodes.putAll(message.getNodes());
+		this.ring.addNodes(message.getNodes());
 
 		switch (state) {
 
 			// I trying to join
 			case JOINING_WAITING_NODES: {
 
-				// compute the next node in the ring
-				final int next = nextInTheRing(nodes.keySet(), id);
-				final ActorRef nextNode = nodes.get(next);
-
-				// ask the data the node is responsible for
+				// ask the next node in the ring data the node is responsible for
+				final ActorRef nextNode = ring.nextNodeInTheRing();
 				nextNode.tell(new DataRequestMessage(id), getSelf());
 				this.state = State.JOINING_WAITING_DATA;
-
 				break;
 			}
 
@@ -435,7 +363,7 @@ public class NodeActor extends UntypedActor {
 				this.dropOldKeys();
 
 				// I probably got an old reference for myself too... correct it!
-				nodes.put(id, getSelf());
+				ring.addNode(id, getSelf());
 
 				// I need to announce me to the system... because nodes have outdated Akka references
 				// this is not really part of the protocol, it is just an Akka implementation detail
@@ -443,7 +371,7 @@ public class NodeActor extends UntypedActor {
 
 				// now I am ready
 				this.state = State.READY;
-				logger.info("[RECOVERY] Recovery completed, state = {}, nodes = {}", state, nodes.keySet());
+				logger.info("[RECOVERY] Recovery completed, state = {}, nodes = {}", state, ring.getNodeIDs());
 				break;
 			}
 		}
@@ -454,9 +382,9 @@ public class NodeActor extends UntypedActor {
 		// extract the key to search
 		final int key = message.getKey();
 
-		if (readQuorum > nodes.size() || replication > nodes.size()) {
+		if (readQuorum > ring.size() || replication > ring.size()) {
 			logger.warning("[READ] A client requests key [{}]... but there are not enough nodes in the system: " +
-				"quorum={}, replication nodes={}, nodes={}", key, readQuorum, replication, nodes.size());
+				"quorum={}, replication nodes={}, nodes={}", key, readQuorum, replication, ring.size());
 
 			// inform client that read is impossible
 			reply(new ClientOperationErrorResponse(id, "Read operation is not possible because there aren't enough nodes in the network"));
@@ -468,9 +396,9 @@ public class NodeActor extends UntypedActor {
 			readRequests.put(requestCount, new ReadRequestStatus(key, getSender(), readQuorum));
 
 			// ask the responsible nodes for the key
-			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, replication);
-			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
-			logger.info("[READ] A client requests key [{}]... asking nodes {} of {}", key, responsible, nodes.keySet());
+			final Set<Integer> responsible = ring.responsibleForKey(key);
+			responsible.forEach(node -> ring.getNode(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
+			logger.info("[READ] A client requests key [{}]... asking nodes {} of {}", key, responsible, ring.getNodeIDs());
 
 			// set a timeout within which reach the quorum
 			final TimeoutMessage timeoutMessage = new TimeoutMessage(id, requestCount);
@@ -488,9 +416,9 @@ public class NodeActor extends UntypedActor {
 		// TODO: this should be NOT replication, but READ / WRITE max ???
 
 		// get the nodes responsible for that key
-		if (replication > nodes.size()) {
+		if (replication > ring.size()) {
 			logger.warning("[UPDATE] A client requests to update key [{}]... but there are not enough nodes in the system: " +
-				"(replication={}, nodes={})", key, replication, nodes.size());
+				"(replication={}, nodes={})", key, replication, ring.size());
 
 			// inform client that update is impossible
 			reply(new ClientOperationErrorResponse(id, "Update operation is not possible because there aren't enough nodes in the network"));
@@ -502,8 +430,8 @@ public class NodeActor extends UntypedActor {
 			writeRequests.put(requestCount, new WriteRequestStatus(key, message.getValue(), getSender(), readQuorum, writeQuorum));
 
 			// before update key, ask the responsible nodes for the key
-			final Set<Integer> responsible = responsibleForKey(nodes.keySet(), key, replication);
-			responsible.forEach(node -> nodes.get(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
+			final Set<Integer> responsible = ring.responsibleForKey(key);
+			responsible.forEach(node -> ring.getNode(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
 
 			// set a timeout within which reach the quorum
 			final TimeoutMessage timeoutMessage = new TimeoutMessage(id, requestCount);
@@ -511,7 +439,7 @@ public class NodeActor extends UntypedActor {
 				getSelf(), timeoutMessage, getContext().system().dispatcher(), getSelf());
 			requestsTimers.put(requestCount, timer);
 
-			logger.info("[UPDATE] A client requests to update key [{}]... asking nodes {} of {}", key, responsible, nodes.keySet());
+			logger.info("[UPDATE] A client requests to update key [{}]... asking nodes {} of {}", key, responsible, ring.getNodeIDs());
 		}
 	}
 
@@ -602,13 +530,11 @@ public class NodeActor extends UntypedActor {
 					final VersionedItem updatedRecord = writeStatus.getUpdatedRecord();
 
 					// send successful response to client with updated record
-					// TODO check if this is the right way to send an object
 					writeStatus.getSender().tell(new ClientUpdateResponse(id, writeStatus.getKey(), updatedRecord), getSelf());
 
 					// send write request to interested nodes (nodes responsible for that key)
-					final Set<Integer> responsible = responsibleForKey(nodes.keySet(), writeStatus.getKey(), replication);
-					// TODO check if this is the right way to send an object
-					responsible.forEach(node -> nodes.get(node).tell(new WriteRequest(id, requestCount, writeStatus.getKey(), updatedRecord), getSelf()));
+					final Set<Integer> responsible = ring.responsibleForKey(writeStatus.getKey());
+					responsible.forEach(node -> ring.getNode(node).tell(new WriteRequest(id, requestCount, writeStatus.getKey(), updatedRecord), getSelf()));
 
 					// cancel the quorum timeout
 					this.requestsTimers.get(requestID).cancel();
@@ -628,23 +554,15 @@ public class NodeActor extends UntypedActor {
 
 		// A read or write operation started from this node could have not been concluded before reach the this timeout.
 		// Check if the operation is concluded. If not, send an error msg to client.
+		final ReadRequestStatus readRequestStatus = readRequests.get(message.getRequestID());
+		final WriteRequestStatus writeRequestStatus = writeRequests.get(message.getRequestID());
 
-		ReadRequestStatus readRequestStatus = readRequests.get(message.getRequestID());
-		WriteRequestStatus writeRequestStatus = writeRequests.get(message.getRequestID());
-
-		if (!(readRequestStatus == null && writeRequestStatus == null)) { // operation is still pending
-
+		// operation is still pending
+		if (!(readRequestStatus == null && writeRequestStatus == null)) {
 			logger.warning("Quorum TIMEOUT reached for request [{}] - cancel operation", message.getRequestID());
 
 			// send an error message to the client
-			ActorRef client;
-
-			if (readRequestStatus != null) {
-				client = readRequestStatus.getSender();
-			} else {
-				client = writeRequestStatus.getSender();
-			}
-
+			final ActorRef client = (readRequestStatus != null) ? readRequestStatus.getSender() : writeRequestStatus.getSender();
 			assert client != null;
 			client.tell(new ClientOperationErrorResponse(id, "Timeout for this operation has been reached"), getSelf());
 
@@ -667,14 +585,14 @@ public class NodeActor extends UntypedActor {
 
 		// now I am ready to serve requests
 		this.state = State.READY;
-		logger.info("Sending Join msg... now I am part of the system. My nodes are: {}", nodes.keySet());
+		logger.info("Sending Join msg... now I am part of the system. My nodes are: {}", ring.getNodeIDs());
 	}
 
 	private void onJoin(JoinMessage message) {
 
 		// add the node to my list
-		this.nodes.put(message.getSenderID(), getSender());
-		logger.info("Node [{}] is joining... nodes = {}", message.getSenderID(), nodes.keySet());
+		ring.addNode(message.getSenderID(), getSender());
+		logger.info("Node [{}] is joining... nodes = {}", message.getSenderID(), ring.getNodeIDs());
 
 		// clean keys
 		this.dropOldKeys();
@@ -684,15 +602,15 @@ public class NodeActor extends UntypedActor {
 
 		// update the reference for the crashed node
 		// this is needed because Akka gives to the node a different reference if started again after a crash
-		this.nodes.put(message.getSenderID(), getSender());
-		logger.warning("Node [{}] is re-joining after a crash... nodes = {}", message.getSenderID(), nodes.keySet());
+		ring.addNode(message.getSenderID(), getSender());
+		logger.warning("Node [{}] is re-joining after a crash... nodes = {}", message.getSenderID(), ring.getNodeIDs());
 	}
 
 	private void onLeave(LeaveMessage message) {
 
 		// remove it from my nodes
-		this.nodes.remove(message.getSenderID());
-		logger.info("Node [{}] is leaving... nodes = {}", message.getSenderID(), nodes.keySet());
+		ring.removeNode(message.getSenderID());
+		logger.info("Node [{}] is leaving... nodes = {}", message.getSenderID(), ring.getNodeIDs());
 	}
 
 	private void onLeaveData(LeaveDataMessage message) {
@@ -710,7 +628,7 @@ public class NodeActor extends UntypedActor {
 	 * @param message Message to send in multicast.
 	 */
 	private void multicast(Serializable message) {
-		this.nodes.entrySet()
+		this.ring.getNodes().entrySet()
 			.stream()
 			.filter(entry -> entry.getKey() != id)
 			.forEach(entry -> entry.getValue().tell(message, getSelf()));
@@ -762,11 +680,11 @@ public class NodeActor extends UntypedActor {
 
 		// remove unwanted records
 		final Map<Integer, VersionedItem> records = oldRecords.entrySet().stream()
-			.filter(entry -> responsibleForKey(nodes.keySet(), entry.getKey(), replication).contains(id))
+			.filter(entry -> ring.responsibleForKey(entry.getKey()).contains(id))
 			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
 		// log
-		logger.debug("Cleaning storage... nodes = {}, old keys = {}, new keys = {}", nodes.keySet(), oldRecords.keySet(), records.keySet());
+		logger.debug("Cleaning storage... nodes = {}, old keys = {}, new keys = {}", ring.getNodeIDs(), oldRecords.keySet(), records.keySet());
 
 		// update storage
 		storageManager.writeRecords(records);
