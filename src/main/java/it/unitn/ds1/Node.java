@@ -14,7 +14,7 @@ public class Node {
 	/**
 	 * Key used in the configuration file to pass the ID for the Node to launch.
 	 */
-	private static final String CONFIG_NODE_ID = "node.id";
+	private static final String CONFIG_NODE_ID = "node.myID";
 
 	/**
 	 * Key used in the configuration file to indicate where the node data store should be created.
