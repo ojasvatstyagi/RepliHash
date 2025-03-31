@@ -7,6 +7,7 @@ import akka.util.Timeout;
 import it.unitn.ds1.messages.client.ClientOperationErrorResponse;
 import it.unitn.ds1.messages.client.ClientReadRequest;
 import it.unitn.ds1.messages.client.ClientReadResponse;
+import org.jetbrains.annotations.NotNull;
 import scala.concurrent.Await;
 import scala.concurrent.Future;
 
@@ -27,7 +28,8 @@ public final class ReadCommand implements Command {
 	}
 
 	@Override
-	public String run(ActorSelection actor, String remote, LoggingAdapter logger) throws Exception {
+	@NotNull
+	public CommandResult run(ActorSelection actor, String remote, LoggingAdapter logger) throws Exception {
 		logger.info("[CLIENT] Read key [{}] from node [{}]...", key, remote);
 
 		// send the command to the actor
@@ -46,7 +48,8 @@ public final class ReadCommand implements Command {
 			logger.error("Actor [{}] replies... read operation has failed. Reason: \"{}\"",
 				result.getSenderID(), result.getMessage());
 
-			return null;
+			// command failed, nothing to return
+			return new CommandResult(false, null);
 		}
 
 		// success
@@ -62,7 +65,7 @@ public final class ReadCommand implements Command {
 					result.getSenderID(), result.getKey());
 			}
 
-			return result.getValue();
+			return new CommandResult(true, result.getValue());
 		}
 	}
 

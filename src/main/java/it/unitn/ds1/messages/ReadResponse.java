@@ -39,13 +39,6 @@ public class ReadResponse extends BaseMessage {
 	}
 
 	/**
-	 * @return True if the key was found, false otherwise.
-	 */
-	public boolean wasItemFound() {
-		return item != null;
-	}
-
-	/**
 	 * @return value and version associated with the key contained in this response.
 	 */
 	@Nullable

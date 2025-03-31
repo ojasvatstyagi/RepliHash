@@ -157,7 +157,7 @@ public class Node {
 		final int id = config.getInt(CONFIG_NODE_ID);
 		final String storagePath = config.getString(CONFIG_STORAGE_PATH);
 		system.actorOf(NodeActor.bootstrap(id, storagePath, SystemConstants.READ_QUORUM,
-			SystemConstants.WRITE_QUORUM, SystemConstants.REPLICATION), SystemConstants.ACTOR_NAME);
+			SystemConstants.WRITE_QUORUM, SystemConstants.REPLICATION, true), SystemConstants.ACTOR_NAME);
 	}
 
 	/**
@@ -180,7 +180,7 @@ public class Node {
 		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
 			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
 		system.actorOf(NodeActor.join(id, storagePath, remote, SystemConstants.READ_QUORUM,
-			SystemConstants.WRITE_QUORUM, SystemConstants.REPLICATION), SystemConstants.ACTOR_NAME);
+			SystemConstants.WRITE_QUORUM, SystemConstants.REPLICATION, true), SystemConstants.ACTOR_NAME);
 	}
 
 	/**
@@ -203,7 +203,7 @@ public class Node {
 		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
 			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
 		system.actorOf(NodeActor.recover(id, storagePath, remote, SystemConstants.READ_QUORUM,
-			SystemConstants.WRITE_QUORUM, SystemConstants.REPLICATION), SystemConstants.ACTOR_NAME);
+			SystemConstants.WRITE_QUORUM, SystemConstants.REPLICATION, true), SystemConstants.ACTOR_NAME);
 	}
 
 }

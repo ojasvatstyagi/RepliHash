@@ -74,6 +74,9 @@ public class NodeActor extends UntypedActor {
 	private final int writeQuorum;
 	private final int replication;
 
+	// used for tests: should the node terminate Akka on leave?
+	private final boolean terminateSystemOnLeave;
+
 	// Unique incremental identifier for each client request
 	// The counter is to be considered unique only inside the same node
 	private int requestCount;
@@ -90,7 +93,7 @@ public class NodeActor extends UntypedActor {
 	 *                       This parameter is not required for the bootstrap node.
 	 */
 	private NodeActor(int id, @NotNull String storagePath, @NotNull StartupCommand startupCommand, @Nullable String remote,
-					  int readQuorum, int writeQuorum, int replication) throws IOException {
+					  int readQuorum, int writeQuorum, int replication, boolean terminateSystemOnLeave) throws IOException {
 
 		// at start, check that the constants R, W and N are correct
 		assert readQuorum > 0 : "Read Quorum must be positive";
@@ -106,6 +109,7 @@ public class NodeActor extends UntypedActor {
 		this.id = id;
 		this.startupCommand = startupCommand;
 		this.remote = remote;
+		this.terminateSystemOnLeave = terminateSystemOnLeave;
 
 		// initialize storage manager
 		this.storageManager = new FileStorageManager(storagePath, id);
@@ -137,13 +141,13 @@ public class NodeActor extends UntypedActor {
 	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
 	 */
 	public static Props bootstrap(final int id, @NotNull final String storagePath,
-								  int readQuorum, int writeQuorum, int replication) {
+								  int readQuorum, int writeQuorum, int replication, boolean terminateSystemOnLeave) {
 		return Props.create(new Creator<NodeActor>() {
 			private static final long serialVersionUID = 1L;
 
 			@Override
 			public NodeActor create() throws Exception {
-				return new NodeActor(id, storagePath, StartupCommand.BOOTSTRAP, null, readQuorum, writeQuorum, replication);
+				return new NodeActor(id, storagePath, StartupCommand.BOOTSTRAP, null, readQuorum, writeQuorum, replication, terminateSystemOnLeave);
 			}
 		});
 	}
@@ -153,13 +157,13 @@ public class NodeActor extends UntypedActor {
 	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
 	 */
 	public static Props join(final int id, @NotNull final String storagePath, String remote,
-							 int readQuorum, int writeQuorum, int replication) {
+							 int readQuorum, int writeQuorum, int replication, boolean terminateSystemOnLeave) {
 		return Props.create(new Creator<NodeActor>() {
 			private static final long serialVersionUID = 1L;
 
 			@Override
 			public NodeActor create() throws Exception {
-				return new NodeActor(id, storagePath, StartupCommand.JOIN, remote, readQuorum, writeQuorum, replication);
+				return new NodeActor(id, storagePath, StartupCommand.JOIN, remote, readQuorum, writeQuorum, replication, terminateSystemOnLeave);
 			}
 		});
 	}
@@ -169,13 +173,13 @@ public class NodeActor extends UntypedActor {
 	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
 	 */
 	public static Props recover(final int id, @NotNull final String storagePath, String remote,
-								int readQuorum, int writeQuorum, int replication) {
+								int readQuorum, int writeQuorum, int replication, boolean terminateSystemOnLeave) {
 		return Props.create(new Creator<NodeActor>() {
 			private static final long serialVersionUID = 1L;
 
 			@Override
 			public NodeActor create() throws Exception {
-				return new NodeActor(id, storagePath, StartupCommand.RECOVER, remote, readQuorum, writeQuorum, replication);
+				return new NodeActor(id, storagePath, StartupCommand.RECOVER, remote, readQuorum, writeQuorum, replication, terminateSystemOnLeave);
 			}
 		});
 	}
@@ -333,7 +337,13 @@ public class NodeActor extends UntypedActor {
 		// storageManager.deleteStorage();
 
 		// shutdown
-		getContext().system().terminate();
+		getContext().stop(getSelf());
+		if (this.terminateSystemOnLeave) {
+			logger.warning("[LEAVE]: shutting down the system...");
+			getContext().system().terminate();
+		} else {
+			logger.warning("[LEAVE]: I am NOT shutting down the system...");
+		}
 	}
 
 	private void onNodesList(@NotNull NodesListMessage message) {
@@ -382,7 +392,8 @@ public class NodeActor extends UntypedActor {
 		// extract the key to search
 		final int key = message.getKey();
 
-		if (readQuorum > ring.size() || replication > ring.size()) {
+		// TODO: here I just check the read quorum... if some replicated node is down, then I will fail later...
+		if (readQuorum > ring.size()) {
 			logger.warning("[READ] A client requests key [{}]... but there are not enough nodes in the system: " +
 				"quorum={}, replication nodes={}, nodes={}", key, readQuorum, replication, ring.size());
 

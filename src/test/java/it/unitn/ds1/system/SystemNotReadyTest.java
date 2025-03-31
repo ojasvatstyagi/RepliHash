@@ -5,6 +5,7 @@ import akka.actor.ActorSystem;
 import akka.testkit.JavaTestKit;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
+import it.unitn.ds1.client.commands.CommandResult;
 import it.unitn.ds1.client.commands.ReadCommand;
 import it.unitn.ds1.client.commands.UpdateCommand;
 import it.unitn.ds1.node.NodeActor;
@@ -13,6 +14,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 
 /**
@@ -22,7 +24,7 @@ import static org.junit.Assert.assertNull;
 public class SystemNotReadyTest {
 
 	// system constants
-	private static final int READ_QUORUM = 2;
+	private static final int READ_QUORUM = 3;
 	private static final int WRITE_QUORUM = 2;
 	private static final int REPLICATION = 3;
 
@@ -52,12 +54,12 @@ public class SystemNotReadyTest {
 		final String storagePath = config.getString("node.storage-path");
 
 		// create initial node
-		this.node10 = system.actorOf(NodeActor.bootstrap(10, storagePath, READ_QUORUM, WRITE_QUORUM, REPLICATION));
+		this.node10 = system.actorOf(NodeActor.bootstrap(10, storagePath, READ_QUORUM, WRITE_QUORUM, REPLICATION, false));
 		TestUtilities.waitForActorToBootstrap(system, node10);
 
 		// add another node
 		this.node20 = system.actorOf(NodeActor.join(20, storagePath, node10.path().toSerializationFormat(),
-			READ_QUORUM, WRITE_QUORUM, REPLICATION));
+			READ_QUORUM, WRITE_QUORUM, REPLICATION, false));
 		TestUtilities.waitForActorToBootstrap(system, node20);
 	}
 
@@ -66,8 +68,9 @@ public class SystemNotReadyTest {
 		new JavaTestKit(system) {{
 
 			// write: 3 -> "ciao"
-			final Object updateResult1 = TestUtilities.executeCommand(system, node10, new ReadCommand(3));
-			assertNull(updateResult1);
+			final CommandResult updateResult1 = TestUtilities.executeCommand(system, node10, new ReadCommand(3));
+			assertFalse(updateResult1.isSuccess());
+			assertNull(updateResult1.getResult());
 		}};
 	}
 
@@ -76,8 +79,9 @@ public class SystemNotReadyTest {
 		new JavaTestKit(system) {{
 
 			// write: 3 -> "ciao"
-			final Object updateResult1 = TestUtilities.executeCommand(system, node20, new UpdateCommand(3, "ciao"));
-			assertNull(updateResult1);
+			final CommandResult updateResult1 = TestUtilities.executeCommand(system, node20, new UpdateCommand(3, "ciao"));
+			assertFalse(updateResult1.isSuccess());
+			assertNull(updateResult1.getResult());
 		}};
 	}
 

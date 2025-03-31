@@ -5,6 +5,7 @@ import akka.actor.ActorSystem;
 import akka.testkit.JavaTestKit;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
+import it.unitn.ds1.client.commands.CommandResult;
 import it.unitn.ds1.client.commands.ReadCommand;
 import it.unitn.ds1.client.commands.UpdateCommand;
 import it.unitn.ds1.node.NodeActor;
@@ -54,20 +55,20 @@ public class SystemReadyTest {
 		final String storagePath = config.getString("node.storage-path");
 
 		// create initial node
-		this.node10 = system.actorOf(NodeActor.bootstrap(10, storagePath, READ_QUORUM, WRITE_QUORUM, REPLICATION));
+		this.node10 = system.actorOf(NodeActor.bootstrap(10, storagePath, READ_QUORUM, WRITE_QUORUM, REPLICATION, false));
 		TestUtilities.waitForActorToBootstrap(system, node10);
 
 		// add a couple of nodes
 		this.node20 = system.actorOf(NodeActor.join(20, storagePath, node10.path().toSerializationFormat(),
-			READ_QUORUM, WRITE_QUORUM, REPLICATION));
+			READ_QUORUM, WRITE_QUORUM, REPLICATION, false));
 		TestUtilities.waitForActorToBootstrap(system, node20);
 
 		this.node30 = system.actorOf(NodeActor.join(30, storagePath, node20.path().toSerializationFormat(),
-			READ_QUORUM, WRITE_QUORUM, REPLICATION));
+			READ_QUORUM, WRITE_QUORUM, REPLICATION, false));
 		TestUtilities.waitForActorToBootstrap(system, node30);
 
 		this.node40 = system.actorOf(NodeActor.join(40, storagePath, node30.path().toSerializationFormat(),
-			READ_QUORUM, WRITE_QUORUM, REPLICATION));
+			READ_QUORUM, WRITE_QUORUM, REPLICATION, false));
 		TestUtilities.waitForActorToBootstrap(system, node40);
 	}
 
@@ -76,8 +77,9 @@ public class SystemReadyTest {
 		new JavaTestKit(system) {{
 
 			// read 2: not existing
-			final String value = (String) TestUtilities.executeCommand(system, node10, new ReadCommand(2));
-			assertNull(value);
+			final CommandResult readResult = TestUtilities.executeCommand(system, node10, new ReadCommand(2));
+			assertTrue(readResult.isSuccess());
+			assertNull(readResult.getResult());
 		}};
 	}
 
@@ -93,8 +95,9 @@ public class SystemReadyTest {
 			TestUtilities.waitSomeTime(system);
 
 			// read 3: must be "ciao"
-			final String readResult = (String) TestUtilities.executeCommand(system, node10, new ReadCommand(3));
-			assertEquals("ciao", readResult);
+			final CommandResult readResult = TestUtilities.executeCommand(system, node10, new ReadCommand(3));
+			assertTrue(readResult.isSuccess());
+			assertEquals("ciao", readResult.getResult());
 		}};
 	}
 
@@ -117,8 +120,9 @@ public class SystemReadyTest {
 			TestUtilities.waitSomeTime(system);
 
 			// read 3: must be "hello"
-			final String readResult = (String) TestUtilities.executeCommand(system, node30, new ReadCommand(3));
-			assertEquals("hello", readResult);
+			final CommandResult readResult = TestUtilities.executeCommand(system, node30, new ReadCommand(3));
+			assertTrue(readResult.isSuccess());
+			assertEquals("hello", readResult.getResult());
 		}};
 	}
 
@@ -149,16 +153,19 @@ public class SystemReadyTest {
 			TestUtilities.waitSomeTime(system);
 
 			// read 3: must be "ciao"
-			final String readResult1 = (String) TestUtilities.executeCommand(system, node30, new ReadCommand(3));
-			assertEquals("ciao", readResult1);
+			final CommandResult readResult1 = TestUtilities.executeCommand(system, node30, new ReadCommand(3));
+			assertTrue(readResult1.isSuccess());
+			assertEquals("ciao", readResult1.getResult());
 
 			// read 55: must be "topolino"
-			final String readResult2 = (String) TestUtilities.executeCommand(system, node30, new ReadCommand(55));
-			assertEquals("topolino", readResult2);
+			final CommandResult readResult2 = TestUtilities.executeCommand(system, node30, new ReadCommand(55));
+			assertTrue(readResult2.isSuccess());
+			assertEquals("topolino", readResult2.getResult());
 
 			// read 22: must be "pluto"
-			final String readResult3 = (String) TestUtilities.executeCommand(system, node30, new ReadCommand(22));
-			assertEquals("pluto", readResult3);
+			final CommandResult readResult3 = TestUtilities.executeCommand(system, node30, new ReadCommand(22));
+			assertTrue(readResult3.isSuccess());
+			assertEquals("pluto", readResult3.getResult());
 		}};
 	}
 }
