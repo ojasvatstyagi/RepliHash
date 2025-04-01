@@ -42,6 +42,53 @@ public class SystemJoinAndLeave {
 	}
 
 	@Test
+	public void allLeaving() throws Exception {
+
+		// get storage path
+		final Config config = ConfigFactory.load();
+		final String storagePath = config.getString("node.storage-path");
+
+		// create initial node
+		final ActorRef node10 = system.actorOf(NodeActor.bootstrap(10, storagePath, READ_QUORUM, WRITE_QUORUM, REPLICATION, false));
+		TestUtilities.waitForActorToBootstrap(system, node10);
+
+		// add other nodes
+		final ActorRef node20 = system.actorOf(NodeActor.join(20, storagePath, node10.path().toSerializationFormat(),
+			READ_QUORUM, WRITE_QUORUM, REPLICATION, false));
+		TestUtilities.waitForActorToBootstrap(system, node20);
+		final ActorRef node30 = system.actorOf(NodeActor.join(30, storagePath, node10.path().toSerializationFormat(),
+			READ_QUORUM, WRITE_QUORUM, REPLICATION, false));
+		TestUtilities.waitForActorToBootstrap(system, node30);
+
+		// write a key -> should be stored on nodes 10 and 20
+		final CommandResult write2 = TestUtilities.executeCommand(system, node30, new UpdateCommand(1, "ciao"));
+		assertTrue(write2.isSuccess());
+
+		// TODO: remove when project is finished
+		TestUtilities.waitSomeTime(system);
+
+		// TODO: check storage here!
+
+		// make 1 node leave -> key should still be available
+		final CommandResult leave1 = TestUtilities.executeCommand(system, node10, new LeaveCommand());
+		assertTrue(leave1.isSuccess());
+
+		// read key, should be still in the system
+		final CommandResult read1 = TestUtilities.executeCommand(system, node30, new ReadCommand(1));
+		assertTrue(read1.isSuccess());
+		assertEquals("ciao", read1.getResult());
+
+		// make another node leave -> key should still be available
+		final CommandResult leave2 = TestUtilities.executeCommand(system, node20, new LeaveCommand());
+		assertTrue(leave2.isSuccess());
+
+		// read key, should be still in the system
+		final CommandResult read2 = TestUtilities.executeCommand(system, node30, new ReadCommand(1));
+		assertTrue(read2.isSuccess());
+		assertEquals("ciao", read2.getResult());
+	}
+
+	@Test
 	public void joinAndLeave() throws Exception {
 
 		// get storage path
