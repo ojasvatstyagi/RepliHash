@@ -6,6 +6,7 @@ import akka.pattern.Patterns;
 import akka.util.Timeout;
 import it.unitn.ds1.messages.client.ClientLeaveRequest;
 import it.unitn.ds1.messages.client.ClientLeaveResponse;
+import org.jetbrains.annotations.NotNull;
 import scala.concurrent.Await;
 import scala.concurrent.Future;
 
@@ -18,8 +19,9 @@ import static it.unitn.ds1.SystemConstants.CLIENT_TIMEOUT_SECONDS;
  */
 public final class LeaveCommand implements Command {
 
+	@NotNull
 	@Override
-	public Boolean run(ActorSelection actor, String remote, LoggingAdapter logger) throws Exception {
+	public CommandResult run(ActorSelection actor, String remote, LoggingAdapter logger) throws Exception {
 		logger.info("[CLIENT] Asking node [{}] to leave...", remote);
 
 		// instruct the target actor to leave the system
@@ -34,6 +36,6 @@ public final class LeaveCommand implements Command {
 		logger.info("[CLIENT] Node [{} - {}] has successful left the system",
 			((ClientLeaveResponse) message).getSenderID(), remote);
 
-		return true;
+		return new CommandResult(true, null);
 	}
 }

@@ -8,6 +8,7 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import it.unitn.ds1.SystemConstants;
 import it.unitn.ds1.client.commands.Command;
+import it.unitn.ds1.client.commands.CommandResult;
 
 import java.util.concurrent.TimeoutException;
 
@@ -48,8 +49,8 @@ public final class CommandExecutor {
 		// execute the command
 		int result;
 		try {
-			final Object response = command.run(targetActor, remote, Logging.getLogger(system, Command.class));
-			result = response != null ? 0 : 1;
+			final CommandResult commandResult = command.run(targetActor, remote, Logging.getLogger(system, Command.class));
+			result = commandResult.isSuccess() ? 0 : 1;
 		} catch (TimeoutException e) {
 			logger.error("[CLIENT] Timeout error: the node did not reply");
 			result = 55;
