@@ -3,7 +3,10 @@ package it.unitn.ds1.node;
 import akka.actor.ActorRef;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -35,19 +38,31 @@ final class Ring {
 		this.nodes = new HashMap<>();
 	}
 
+	@NotNull
+	private static Set<Integer> computeResponsibleForKey(int key, Set<Integer> nodes, int replication) {
+		return nodes.stream().sorted((o1, o2) -> {
+			if (o1 >= key && o2 >= key) return o1 - o2;
+			if (o1 >= key && o2 < key) return -1;
+			if (o1 < key && o2 >= key) return +1;
+			else return o1 - o2;
+		}).limit(replication).collect(Collectors.toSet());
+	}
+
 	/**
 	 * Return the IDs responsible for the given key.
 	 *
 	 * @param key Key.
 	 * @return Set of responsible IDs.
 	 */
+	@NotNull
 	Set<Integer> responsibleForKey(int key) {
-		return this.nodes.keySet().stream().sorted((o1, o2) -> {
-			if (o1 >= key && o2 >= key) return o1 - o2;
-			if (o1 >= key && o2 < key) return -1;
-			if (o1 < key && o2 >= key) return +1;
-			else return o1 - o2;
-		}).limit(replication).collect(Collectors.toSet());
+		return computeResponsibleForKey(key, this.nodes.keySet(), this.replication);
+	}
+
+	@NotNull
+	Set<Integer> nextResponsibleReplicasForLeaving(int key) {
+		final Set<Integer> nodesExceptMe = this.nodes.keySet().stream().filter(id -> id != this.myID).collect(Collectors.toSet());
+		return computeResponsibleForKey(key, nodesExceptMe, this.replication);
 	}
 
 	/**
@@ -67,33 +82,6 @@ final class Ring {
 	@NotNull
 	ActorRef nextNodeInTheRing() {
 		return this.nodes.get(this.nextIDInTheRing());
-	}
-
-	/**
-	 * Return the Ids of the replicas that would be responsible for current node's keys
-	 * in the case that this node would leave the network.
-	 *
-	 * @return The ID of the replica.
-	 */
-	@NotNull
-	Set<Integer> nextResponsibleReplicasForLeaving() {
-		final Set<Integer> nextReplicas = new HashSet<>();
-		final List<Integer> idsList = this.nodes.keySet().stream().sorted().collect(Collectors.toList());
-
-		// get the next ReplicationNumber-th replicas after the current node
-		int currentNodeIndex = idsList.indexOf(myID);
-		for (int i = 1; i <= replication; i++) {
-
-			int nextReplicaIndex = ((currentNodeIndex + i) % idsList.size());
-			int nextReplica = idsList.get(nextReplicaIndex);
-
-			// avoid to add current node if it is leaving
-			if (nextReplica != myID) {
-				nextReplicas.add(nextReplica);
-			}
-		}
-
-		return nextReplicas;
 	}
 
 	/**

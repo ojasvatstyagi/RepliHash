@@ -12,7 +12,7 @@ public class SystemConstants {
 	static final int WRITE_QUORUM = 2;
 
 	public static final int QUORUM_TIMEOUT_SECONDS = 3;
-	public static final int CLIENT_TIMEOUT_SECONDS = 5;
+	public static final int CLIENT_TIMEOUT_SECONDS = 10;
 
 	/**
 	 * Unique name for the Akka application.

@@ -79,4 +79,25 @@ public class RingTest {
 		assertEquals(Sets.newHashSet(10, 20, 30, 40, 50, 60, 70, 80, 90, 100), actual);
 	}
 
+	@Test
+	public void responsibleForKeyIAmLeaving1() {
+		final Ring ring = createRing(new int[]{10, 20, 30, 40, 50, 60}, 3, 50);
+		final Set<Integer> actual = ring.nextResponsibleReplicasForLeaving(50);
+		assertEquals(Sets.newHashSet(10, 20, 60), actual);
+	}
+
+	@Test
+	public void responsibleForKeyIAmLeaving2() {
+		final Ring ring = createRing(new int[]{10, 20, 30}, 3, 30);
+		final Set<Integer> actual = ring.nextResponsibleReplicasForLeaving(40);
+		assertEquals(Sets.newHashSet(10, 20), actual);
+	}
+
+	@Test
+	public void responsibleForKeyIAmLeaving3() {
+		final Ring ring = createRing(new int[]{10, 20}, 3, 10);
+		final Set<Integer> actual = ring.nextResponsibleReplicasForLeaving(15);
+		assertEquals(Sets.newHashSet(20), actual);
+	}
+
 }

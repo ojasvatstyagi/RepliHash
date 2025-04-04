@@ -324,14 +324,31 @@ public class NodeActor extends UntypedActor {
 	private void onLeaveRequest() {
 		logger.warning("[LEAVE] A Client asks me to leave... sending goodbye message");
 
-		// TODO: do stuff, exit protocol --> is right?
+		// Temp variable used to sort record on new replicas
+		// Key; new replica id, Value: Map of record to leave to new replica as legacy
+		final Map<Integer, Map<Integer, VersionedItem>> legacies = new HashMap<>();
+		final Map<Integer, VersionedItem> records = storageManager.readRecords();
 
-		// send my data to next replicas who are responsible for
-		final Set<Integer> replicaIDs = ring.nextResponsibleReplicasForLeaving();
+		for (Map.Entry<Integer, VersionedItem> record : records.entrySet()) {
 
-		// send node's local storage to the future replicas that will be responsible for its keys
-		for (int replicaId : replicaIDs) {
-			ring.getNode(replicaId).tell(new LeaveDataMessage(id, storageManager.readRecords()), getSelf());
+			// find the next replicas responsible for current key
+			final Set<Integer> nextReplicaIds = ring.nextResponsibleReplicasForLeaving(record.getKey());
+
+			// add the record to the legacy for the next replicas
+			for (int nextReplicaId : nextReplicaIds) {
+				Map<Integer, VersionedItem> dataLegacy = legacies.get(nextReplicaId);
+				if (dataLegacy == null) {
+					dataLegacy = new HashMap<>();
+				}
+				dataLegacy.put(record.getKey(), record.getValue());
+				legacies.put(nextReplicaId, dataLegacy);
+			}
+		}
+
+		// send legacy to next replicas
+		for (int nodeId : legacies.keySet()) {
+			Map<Integer, VersionedItem> recordsLegacy = legacies.get(nodeId);
+			ring.getNode(nodeId).tell(new LeaveDataMessage(id, recordsLegacy), getSelf());
 		}
 
 		// inform all nodes that I am leaving
