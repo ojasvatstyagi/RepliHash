@@ -20,23 +20,23 @@ public final class WriteResponseStatus {
 	// nodes who confirmed the write
 	private final Set<Integer> nodesAcks;
 	private final ActorRef sender;
-	private final int replicationFactor;
+	private final int quorum;
 
-	public WriteResponseStatus(int key, VersionedItem newValue, ActorRef sender, int replicationFactor) {
-		assert replicationFactor > 0;
+	public WriteResponseStatus(int key, VersionedItem newValue, ActorRef sender, int readQuorum, int writeQuorum) {
+		assert readQuorum > 0 && writeQuorum > 0;
 		this.key = key;
 		this.versionedItem = newValue;
 		this.nodesAcks = new HashSet<>();
 		this.sender = sender;
-		this.replicationFactor = replicationFactor;
+		this.quorum = Math.max(readQuorum, writeQuorum);
 	}
 
 	public void addAck(int nodeId) {
 		this.nodesAcks.add(nodeId);
 	}
 
-	public boolean hasEveryoneAck() {
-		return nodesAcks.size() >= replicationFactor;
+	public boolean hasAckQuorumReached() {
+		return this.nodesAcks.size() >= quorum;
 	}
 
 	public int getKey() {

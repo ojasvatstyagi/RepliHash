@@ -529,7 +529,7 @@ public class NodeActor extends UntypedActor {
 			writeStatus.addAck(message.getSenderID());
 
 			// check if every node has ack
-			if (writeStatus.hasEveryoneAck()) {
+			if (writeStatus.hasAckQuorumReached()) {
 				logger.info("[WRITE] Every node acknowledge for write request [{}] - inform the client", writeStatus.getNodeAcksIds().toString());
 
 				// send successful response to client with updated record
@@ -601,7 +601,7 @@ public class NodeActor extends UntypedActor {
 					// writeStatus.getSender().tell(new ClientUpdateResponse(id, writeStatus.getKey(), updatedRecord), getSelf());
 
 					// send write request to interested nodes (nodes responsible for that key)
-					this.writeResponses.put(requestID, new WriteResponseStatus(writeStatus.getKey(), updatedRecord, writeStatus.getSender(), replication));
+					this.writeResponses.put(requestID, new WriteResponseStatus(writeStatus.getKey(), updatedRecord, writeStatus.getSender(), readQuorum, writeQuorum));
 					final Set<Integer> responsible = ring.responsibleForKey(writeStatus.getKey());
 					responsible.forEach(node -> ring.getNode(node).tell(new WriteRequest(id, requestCount, writeStatus.getKey(), updatedRecord), getSelf()));
 
