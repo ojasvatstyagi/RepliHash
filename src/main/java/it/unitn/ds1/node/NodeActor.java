@@ -361,12 +361,12 @@ public class NodeActor extends UntypedActor {
 		// storageManager.deleteStorage();
 
 		// shutdown
-		getContext().stop(getSelf());
 		if (this.terminateSystemOnLeave) {
 			logger.warning("[LEAVE]: shutting down the system...");
 			getContext().system().terminate();
 		} else {
 			logger.warning("[LEAVE]: I am NOT shutting down the system...");
+			getContext().stop(getSelf());
 		}
 	}
 
