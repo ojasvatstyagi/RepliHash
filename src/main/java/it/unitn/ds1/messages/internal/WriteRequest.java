@@ -1,5 +1,6 @@
-package it.unitn.ds1.messages;
+package it.unitn.ds1.messages.internal;
 
+import it.unitn.ds1.messages.BaseMessage;
 import it.unitn.ds1.messages.client.ClientUpdateRequest;
 import it.unitn.ds1.storage.VersionedItem;
 

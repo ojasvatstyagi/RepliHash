@@ -1,4 +1,4 @@
-package it.unitn.ds1.node;
+package it.unitn.ds1.node.status;
 
 import akka.actor.ActorRef;
 import it.unitn.ds1.storage.VersionedItem;
@@ -9,7 +9,6 @@ import java.util.Set;
 /**
  * This object is used to collect the responses of some write request sent from a node.
  */
-@SuppressWarnings("WeakerAccess")
 public final class WriteResponseStatus {
 
 	// TODO: add also nodes that were responsible for this
@@ -17,6 +16,7 @@ public final class WriteResponseStatus {
 	// internal variables
 	private final int key;
 	private final VersionedItem versionedItem;
+
 	// nodes who confirmed the write
 	private final Set<Integer> nodesAcks;
 	private final ActorRef sender;

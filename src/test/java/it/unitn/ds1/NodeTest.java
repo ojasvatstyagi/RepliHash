@@ -9,7 +9,7 @@ import org.junit.contrib.java.lang.system.ExpectedSystemExit;
  *
  * @author Davide Pedranz
  */
-public class NodeTest {
+public final class NodeTest {
 
 	@Rule
 	public final ExpectedSystemExit exit = ExpectedSystemExit.none();

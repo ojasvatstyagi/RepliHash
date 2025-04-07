@@ -8,6 +8,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class CommandResult {
 
+	// internal variables
 	private final boolean success;
 	private final Object result;
 

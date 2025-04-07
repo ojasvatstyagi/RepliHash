@@ -6,7 +6,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  * Message to inform the client that an operation (read or update) request didn't success.
  */
-public class ClientOperationErrorResponse extends BaseMessage {
+public final class ClientOperationErrorResponse extends BaseMessage {
 
 	// message fields
 	private final String message;

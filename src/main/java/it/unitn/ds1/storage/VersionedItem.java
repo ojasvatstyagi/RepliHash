@@ -8,7 +8,7 @@ import java.io.Serializable;
  * Represent an item saved in the data store.
  * Each item has a value and a version.
  */
-public class VersionedItem implements Serializable {
+public final class VersionedItem implements Serializable {
 
 	private final String value;
 	private final int version;

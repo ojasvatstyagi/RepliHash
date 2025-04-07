@@ -1,4 +1,4 @@
-package it.unitn.ds1.node;
+package it.unitn.ds1.node.status;
 
 import akka.actor.ActorRef;
 import it.unitn.ds1.storage.VersionedItem;
@@ -9,7 +9,6 @@ import java.util.List;
 /**
  * This object is used to collect the responses of some read.
  */
-@SuppressWarnings("WeakerAccess")
 public final class ReadRequestStatus {
 
 	// internal variables

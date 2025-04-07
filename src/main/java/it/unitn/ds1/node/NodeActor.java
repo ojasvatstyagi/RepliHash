@@ -7,8 +7,11 @@ import akka.actor.UntypedActor;
 import akka.event.DiagnosticLoggingAdapter;
 import akka.event.Logging;
 import akka.japi.Creator;
-import it.unitn.ds1.messages.*;
 import it.unitn.ds1.messages.client.*;
+import it.unitn.ds1.messages.internal.*;
+import it.unitn.ds1.node.status.ReadRequestStatus;
+import it.unitn.ds1.node.status.WriteRequestStatus;
+import it.unitn.ds1.node.status.WriteResponseStatus;
 import it.unitn.ds1.storage.FileStorageManager;
 import it.unitn.ds1.storage.StorageManager;
 import it.unitn.ds1.storage.VersionedItem;
@@ -29,7 +32,7 @@ import static it.unitn.ds1.SystemConstants.QUORUM_TIMEOUT_SECONDS;
 /**
  * Akka Actor that implements the node's behaviour.
  */
-public class NodeActor extends UntypedActor {
+public final class NodeActor extends UntypedActor {
 
 	// Unique identifier for this node
 	private final int id;

@@ -7,22 +7,12 @@ import akka.event.LoggingAdapter;
 import akka.testkit.JavaTestKit;
 import it.unitn.ds1.client.commands.Command;
 import it.unitn.ds1.client.commands.CommandResult;
-import it.unitn.ds1.messages.JoinRequestMessage;
+import it.unitn.ds1.messages.internal.JoinRequestMessage;
 
 /**
  * Some utility methods to test the whole system.
  */
 final class TestUtilities {
-
-	static void waitSomeTime(ActorSystem system) {
-		new JavaTestKit(system) {{
-			new ReceiveWhile<Boolean>(Boolean.class, duration("20 millis")) {
-				protected Boolean match(Object in) {
-					return true;
-				}
-			};
-		}};
-	}
 
 	static void waitForActorToBootstrap(ActorSystem system, ActorRef actor) {
 		new JavaTestKit(system) {{

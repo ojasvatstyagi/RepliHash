@@ -5,7 +5,7 @@ import org.jetbrains.annotations.NonNls;
 /**
  * Exception thrown when a write fails
  */
-public class ReadException extends RuntimeException {
+public final class ReadException extends RuntimeException {
 
 	public ReadException(@NonNls String message) {
 		super(message);

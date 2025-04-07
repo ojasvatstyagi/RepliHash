@@ -15,7 +15,7 @@ import static org.junit.Assert.*;
 /**
  * Test storage manger
  */
-public class FileStorageManagerTest {
+public final class FileStorageManagerTest {
 
 	private static final int NODE_ID = 10;
 

@@ -36,6 +36,7 @@ public final class LeaveCommand implements Command {
 		logger.info("[CLIENT] Node [{} - {}] has successful left the system",
 			((ClientLeaveResponse) message).getSenderID(), remote);
 
+		// return a positive response... if there is a problem, an exception is thrown
 		return new CommandResult(true, null);
 	}
 }

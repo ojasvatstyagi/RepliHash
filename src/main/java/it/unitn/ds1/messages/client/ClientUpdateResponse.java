@@ -6,7 +6,7 @@ import it.unitn.ds1.storage.VersionedItem;
 /**
  * Message to reply to a read command.
  */
-public class ClientUpdateResponse extends BaseMessage {
+public final class ClientUpdateResponse extends BaseMessage {
 
 	// message fields
 	private final int key;

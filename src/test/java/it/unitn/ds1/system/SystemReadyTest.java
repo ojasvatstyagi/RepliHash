@@ -20,7 +20,7 @@ import static org.junit.Assert.*;
  * Integration test for the whole system.
  * See http://doc.akka.io/docs/akka/current/java/testing.html for details.
  */
-public class SystemReadyTest {
+public final class SystemReadyTest {
 
 	// system constants
 	private static final int READ_QUORUM = 2;
@@ -91,9 +91,6 @@ public class SystemReadyTest {
 			final Object updateResult = TestUtilities.executeCommand(system, node30, new UpdateCommand(3, "ciao"));
 			assertNotNull(updateResult);
 
-			// TODO: remove when project is finished
-			TestUtilities.waitSomeTime(system);
-
 			// read 3: must be "ciao"
 			final CommandResult readResult = TestUtilities.executeCommand(system, node10, new ReadCommand(3));
 			assertTrue(readResult.isSuccess());
@@ -109,15 +106,9 @@ public class SystemReadyTest {
 			final Object updateResult1 = TestUtilities.executeCommand(system, node20, new UpdateCommand(3, "ciao"));
 			assertNotNull(updateResult1);
 
-			// TODO: remove when project is finished
-			TestUtilities.waitSomeTime(system);
-
 			// write: 3 -> "hello"
 			final Object updateResult2 = TestUtilities.executeCommand(system, node40, new UpdateCommand(3, "hello"));
 			assertNotNull(updateResult2);
-
-			// TODO: remove when project is finished
-			TestUtilities.waitSomeTime(system);
 
 			// read 3: must be "hello"
 			final CommandResult readResult = TestUtilities.executeCommand(system, node30, new ReadCommand(3));
@@ -142,15 +133,9 @@ public class SystemReadyTest {
 			final Object updateResult3 = TestUtilities.executeCommand(system, node10, new UpdateCommand(22, "pluto"));
 			assertNotNull(updateResult3);
 
-			// TODO: remove when project is finished
-			TestUtilities.waitSomeTime(system);
-
 			// override 55 -> "topolino"
 			final Object updateResult4 = TestUtilities.executeCommand(system, node20, new UpdateCommand(55, "topolino"));
 			assertNotNull(updateResult4);
-
-			// TODO: remove when project is finished
-			TestUtilities.waitSomeTime(system);
 
 			// read 3: must be "ciao"
 			final CommandResult readResult1 = TestUtilities.executeCommand(system, node30, new ReadCommand(3));

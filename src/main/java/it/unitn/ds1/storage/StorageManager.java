@@ -1,6 +1,7 @@
 package it.unitn.ds1.storage;
 
 import it.unitn.ds1.storage.exceptions.ReadException;
+import it.unitn.ds1.storage.exceptions.WriteException;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;

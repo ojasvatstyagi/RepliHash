@@ -1,6 +1,7 @@
 package it.unitn.ds1.storage;
 
 import it.unitn.ds1.storage.exceptions.ReadException;
+import it.unitn.ds1.storage.exceptions.WriteException;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
@@ -18,7 +19,7 @@ import java.util.Map;
 /**
  * Storage Manager implementation based on file.
  */
-public class FileStorageManager implements StorageManager {
+public final class FileStorageManager implements StorageManager {
 
 	// use space as record separator as requested from project guidelines
 	private static CSVFormat CUSTOM_CSV_FORMAT = CSVFormat.DEFAULT.withDelimiter(' ');

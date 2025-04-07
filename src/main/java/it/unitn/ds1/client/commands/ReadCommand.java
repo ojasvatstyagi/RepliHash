@@ -23,6 +23,11 @@ public final class ReadCommand implements Command {
 	// internal variables
 	private final int key;
 
+	/**
+	 * Create a new command to read the value of a given key.
+	 *
+	 * @param key Key to read.
+	 */
 	public ReadCommand(int key) {
 		this.key = key;
 	}
@@ -65,6 +70,7 @@ public final class ReadCommand implements Command {
 					result.getSenderID(), result.getKey());
 			}
 
+			// the read was successful
 			return new CommandResult(true, result.getValue());
 		}
 	}

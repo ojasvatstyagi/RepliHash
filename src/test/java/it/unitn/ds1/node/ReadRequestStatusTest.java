@@ -1,6 +1,7 @@
 package it.unitn.ds1.node;
 
 import akka.actor.ActorRef;
+import it.unitn.ds1.node.status.ReadRequestStatus;
 import it.unitn.ds1.storage.VersionedItem;
 import org.junit.Test;
 
@@ -9,7 +10,7 @@ import static org.junit.Assert.*;
 /**
  * Test for @{@link ReadRequestStatus}.
  */
-public class ReadRequestStatusTest {
+public final class ReadRequestStatusTest {
 
 	@Test
 	public void checkGets() {

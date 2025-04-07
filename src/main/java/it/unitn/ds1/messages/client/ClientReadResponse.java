@@ -6,7 +6,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Message to reply to a read command.
  */
-public class ClientReadResponse extends BaseMessage {
+public final class ClientReadResponse extends BaseMessage {
 
 	// message fields
 	private final int key;

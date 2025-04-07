@@ -1,9 +1,11 @@
-package it.unitn.ds1.messages;
+package it.unitn.ds1.messages.internal;
+
+import it.unitn.ds1.messages.BaseMessage;
 
 /**
  * Message used to communicate that a timeout for a certain request has been reached.
  */
-public class TimeoutMessage extends BaseMessage {
+public final class TimeoutMessage extends BaseMessage {
 
 	private final int requestID;
 

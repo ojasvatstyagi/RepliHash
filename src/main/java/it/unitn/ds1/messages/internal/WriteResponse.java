@@ -1,9 +1,11 @@
-package it.unitn.ds1.messages;
+package it.unitn.ds1.messages.internal;
+
+import it.unitn.ds1.messages.BaseMessage;
 
 /**
  * Message to acknowledge the write of some key. This message is internal to the system.
  */
-public class WriteResponse extends BaseMessage {
+public final class WriteResponse extends BaseMessage {
 
 	// message fields
 	private final int requestID;

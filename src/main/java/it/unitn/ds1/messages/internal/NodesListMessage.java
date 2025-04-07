@@ -1,6 +1,7 @@
-package it.unitn.ds1.messages;
+package it.unitn.ds1.messages.internal;
 
 import akka.actor.ActorRef;
+import it.unitn.ds1.messages.BaseMessage;
 
 import java.util.Collections;
 import java.util.Map;
@@ -9,7 +10,7 @@ import java.util.Map;
  * Message used to transmit the list of Nodes in the system.
  * Used during the leave phase.
  */
-public class NodesListMessage extends BaseMessage {
+public final class NodesListMessage extends BaseMessage {
 
 	// message fields
 	private final Map<Integer, ActorRef> nodes;

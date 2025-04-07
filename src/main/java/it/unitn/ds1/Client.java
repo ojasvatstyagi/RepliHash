@@ -9,7 +9,7 @@ import org.apache.commons.validator.routines.InetAddressValidator;
 /**
  * Client.
  */
-public class Client {
+public final class Client {
 
 	/**
 	 * Error message to print when the Node is invoked with the wrong parameters.

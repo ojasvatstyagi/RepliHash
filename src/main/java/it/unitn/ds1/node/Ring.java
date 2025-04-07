@@ -59,6 +59,12 @@ final class Ring {
 		return computeResponsibleForKey(key, this.nodes.keySet(), this.replication);
 	}
 
+	/**
+	 * Return the IDs responsible for a given key after the current node leaves.
+	 *
+	 * @param key Key.
+	 * @return Set of new responsible IDs.
+	 */
 	@NotNull
 	Set<Integer> nextResponsibleReplicasForLeaving(int key) {
 		final Set<Integer> nodesExceptMe = this.nodes.keySet().stream().filter(id -> id != this.myID).collect(Collectors.toSet());

@@ -12,6 +12,10 @@ import it.unitn.ds1.client.commands.CommandResult;
 
 import java.util.concurrent.TimeoutException;
 
+/**
+ * Execute an arbitrary command that implements the interface @{@link Command}.
+ * This class is used in the command line interfaces to interact with the Akka system.
+ */
 public final class CommandExecutor {
 
 	// internal hidden variables
@@ -40,6 +44,9 @@ public final class CommandExecutor {
 
 	/**
 	 * Run the command implemented by this class.
+	 *
+	 * @return 0 if the command was corrected executed, 1 if the system
+	 * could not execute the command, 2 for unexpected error.
 	 */
 	public final int execute(Command command) {
 
@@ -53,10 +60,10 @@ public final class CommandExecutor {
 			result = commandResult.isSuccess() ? 0 : 1;
 		} catch (TimeoutException e) {
 			logger.error("[CLIENT] Timeout error: the node did not reply");
-			result = 55;
+			result = 2;
 		} catch (Exception e) {
 			logger.error(e, "[CLIENT] The command failed with the following error: \"{}\"", e.getMessage());
-			result = 55;
+			result = 2;
 		}
 
 		// after the command, exit

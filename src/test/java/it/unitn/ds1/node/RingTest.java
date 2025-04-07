@@ -10,10 +10,8 @@ import static org.junit.Assert.assertEquals;
 
 /**
  * Tests for @{@link Ring}.
- *
- * @author Davide Pedranz
  */
-public class RingTest {
+public final class RingTest {
 
 	private static Ring createRing(int[] ids, int replication, int myID) {
 		final Ring ring = new Ring(replication, myID);

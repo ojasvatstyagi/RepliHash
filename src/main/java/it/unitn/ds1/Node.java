@@ -9,7 +9,7 @@ import org.apache.commons.validator.routines.InetAddressValidator;
 /**
  * Entry point to launch a new node.
  */
-public class Node {
+public final class Node {
 
 	/**
 	 * Key used in the configuration file to pass the ID for the Node to launch.

@@ -20,7 +20,7 @@ import static org.junit.Assert.*;
  * Integration test for the whole system.
  * See http://doc.akka.io/docs/akka/current/java/testing.html for details.
  */
-public class SystemJoinAndLeave {
+public final class SystemJoinAndLeave {
 
 	// system constants
 	private static final int READ_QUORUM = 1;
@@ -63,9 +63,6 @@ public class SystemJoinAndLeave {
 		// write a key -> should be stored on nodes 10 and 20
 		final CommandResult write2 = TestUtilities.executeCommand(system, node30, new UpdateCommand(1, "ciao"));
 		assertTrue(write2.isSuccess());
-
-		// TODO: remove when project is finished
-		TestUtilities.waitSomeTime(system);
 
 		// TODO: check storage here!
 
@@ -116,9 +113,6 @@ public class SystemJoinAndLeave {
 		// write a key
 		final CommandResult write2 = TestUtilities.executeCommand(system, node20, new UpdateCommand(1, "ciao"));
 		assertTrue(write2.isSuccess());
-
-		// TODO: remove when project is finished
-		TestUtilities.waitSomeTime(system);
 
 		// make node 2 leave
 		final CommandResult leave1 = TestUtilities.executeCommand(system, node10, new LeaveCommand());

@@ -21,7 +21,7 @@ import static org.junit.Assert.assertNull;
  * Integration test for the whole system.
  * See http://doc.akka.io/docs/akka/current/java/testing.html for details.
  */
-public class SystemNotReadyTest {
+public final class SystemNotReadyTest {
 
 	// system constants
 	private static final int READ_QUORUM = 3;

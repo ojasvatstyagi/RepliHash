@@ -3,8 +3,8 @@ package it.unitn.ds1.messages;
 import java.io.Serializable;
 
 /**
- * This base message include the ID of the sender
- * for debugging convenience.
+ * This base message include the ID of the sender for debugging convenience.
+ * All messages sent by nodes internal in the system should extend this class.
  */
 public abstract class BaseMessage implements Serializable {
 

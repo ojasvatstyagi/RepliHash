@@ -21,7 +21,7 @@ import static org.junit.Assert.*;
  * Integration test for the whole system.
  * See http://doc.akka.io/docs/akka/current/java/testing.html for details.
  */
-public class SystemCrashAndRecovery {
+public final class SystemCrashAndRecovery {
 
 	// system constants
 	private static final int READ_QUORUM = 2;

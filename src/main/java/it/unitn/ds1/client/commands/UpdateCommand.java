@@ -24,6 +24,12 @@ public final class UpdateCommand implements Command {
 	private final int key;
 	private final String value;
 
+	/**
+	 * Create a new command to update the value of a given key.
+	 *
+	 * @param key   Key to update.
+	 * @param value New value for the key.
+	 */
 	public UpdateCommand(int key, String value) {
 		this.key = key;
 		this.value = value;
@@ -50,6 +56,7 @@ public final class UpdateCommand implements Command {
 			logger.error("Actor [{}] replies... update operation has failed. Reason: \"{}\"",
 				result.getSenderID(), result.getMessage());
 
+			// something went wrong... maybe the quorum was not reached
 			return new CommandResult(false, null);
 		}
 
@@ -61,6 +68,7 @@ public final class UpdateCommand implements Command {
 			logger.info("[CLIENT] Actor [{}] replies: key [{}] has been updated (value: \"{}\", version: {})",
 				result.getSenderID(), result.getKey(), result.getVersionedItem().getValue(), result.getVersionedItem().getVersion());
 
+			// update was successful
 			return new CommandResult(true, result.getVersionedItem());
 		}
 	}

@@ -5,7 +5,7 @@ import java.io.Serializable;
 /**
  * Message to request the update of some item. This message is used by the client.
  */
-public class ClientUpdateRequest implements Serializable {
+public final class ClientUpdateRequest implements Serializable {
 
 	// message fields
 	private final int key;
