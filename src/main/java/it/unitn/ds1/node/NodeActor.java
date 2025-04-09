@@ -486,8 +486,6 @@ public final class NodeActor extends UntypedActor {
 		// extract the key to search
 		final int key = message.getKey();
 
-		// TODO: assertion that I am responsible?
-
 		// read the value from the data-store and send it back
 		final VersionedItem item = read(key);
 		reply(new ReadResponse(id, message.getRequestID(), key, item));
@@ -502,8 +500,6 @@ public final class NodeActor extends UntypedActor {
 
 		// extract the key to search
 		final int key = message.getKey();
-
-		// TODO: assertion that I am responsible?
 
 		// write the new record in the data-store
 		write(key, message.getVersionedItem());
@@ -549,8 +545,6 @@ public final class NodeActor extends UntypedActor {
 	}
 
 	private void onReadResponse(ReadResponse message) {
-
-		// TODO: assert something here?
 
 		// check that the request is still valid
 		final int requestID = message.getRequestID();
@@ -599,9 +593,6 @@ public final class NodeActor extends UntypedActor {
 
 					// calculate new version
 					final VersionedItem updatedRecord = writeStatus.getUpdatedRecord();
-
-					// send successful response to client with updated record // TODO remove - done in onWriteResponse
-					// writeStatus.getSender().tell(new ClientUpdateResponse(id, writeStatus.getKey(), updatedRecord), getSelf());
 
 					// send write request to interested nodes (nodes responsible for that key)
 					this.writeResponses.put(requestID, new WriteResponseStatus(writeStatus.getKey(), updatedRecord, writeStatus.getSender(), readQuorum, writeQuorum));
@@ -744,9 +735,6 @@ public final class NodeActor extends UntypedActor {
 	}
 
 	private void dropOldKeys() {
-
-		// TODO: check if this works
-		// seems like it is working
 
 		// load records from storage
 		final Map<Integer, VersionedItem> oldRecords = storageManager.readRecords();
