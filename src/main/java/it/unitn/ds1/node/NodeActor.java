@@ -10,8 +10,8 @@ import akka.japi.Creator;
 import it.unitn.ds1.messages.client.*;
 import it.unitn.ds1.messages.internal.*;
 import it.unitn.ds1.node.status.ReadRequestStatus;
-import it.unitn.ds1.node.status.WriteRequestStatus;
-import it.unitn.ds1.node.status.WriteResponseStatus;
+import it.unitn.ds1.node.status.UpdateRequestStatus;
+import it.unitn.ds1.node.status.UpdateResponseStatus;
 import it.unitn.ds1.storage.FileStorageManager;
 import it.unitn.ds1.storage.StorageManager;
 import it.unitn.ds1.storage.VersionedItem;
@@ -65,11 +65,11 @@ public final class NodeActor extends UntypedActor {
 
 	// Write progress for a future write request the node is responsible for
 	// Maps the requestID to the request status
-	private final Map<Integer, WriteRequestStatus> writeRequests;
+	private final Map<Integer, UpdateRequestStatus> writeRequests;
 
 	// Write responses from nodes to which a write has been asked
 	// Maps the requestID to the response status
-	private final Map<Integer, WriteResponseStatus> writeResponses;
+	private final Map<Integer, UpdateResponseStatus> writeResponses;
 
 	// Timers for read or write requests
 	// Every timer is responsible for delivering a timeout message to node is responsible for the request.
@@ -465,7 +465,7 @@ public final class NodeActor extends UntypedActor {
 
 			// store the update request to be able to process the responses
 			requestCount++;
-			writeRequests.put(requestCount, new WriteRequestStatus(key, message.getValue(), getSender(), readQuorum, writeQuorum));
+			writeRequests.put(requestCount, new UpdateRequestStatus(key, message.getValue(), getSender(), readQuorum, writeQuorum));
 
 			// before update key, ask the responsible nodes for the key
 			final Set<Integer> responsible = ring.responsibleForKey(key);
@@ -523,13 +523,13 @@ public final class NodeActor extends UntypedActor {
 		} else {
 
 			logger.debug("[WRITE] Valid ack for write request [{}] from node [{}]", requestID, message.getSenderID());
-			final WriteResponseStatus writeStatus = writeResponses.get(requestID);
+			final UpdateResponseStatus writeStatus = writeResponses.get(requestID);
 
 			writeStatus.addAck(message.getSenderID());
 
 			// check if every node has ack
-			if (writeStatus.hasAckQuorumReached()) {
-				logger.info("[WRITE] Every node acknowledge for write request [{}] - inform the client", writeStatus.getNodeAcksIds().toString());
+			if (writeStatus.isAckQuorumReached()) {
+				logger.info("[WRITE] Every node acknowledge for write request [{}] - inform the client", writeStatus.getNodeThatAcknowledged().toString());
 
 				// send successful response to client with updated record
 				writeStatus.getSender().tell(new ClientUpdateResponse(id, writeStatus.getKey(), writeStatus.getVersionedItem()), getSelf());
@@ -538,7 +538,7 @@ public final class NodeActor extends UntypedActor {
 				this.writeResponses.remove(requestID);
 
 			} else {
-				logger.debug("[WRITE] Some node acks are still missing. Nodes who acknowledge the write: [{}] - waiting...", writeStatus.getNodeAcksIds().toString());
+				logger.debug("[WRITE] Some node acks are still missing. Nodes who acknowledge the write: [{}] - waiting...", writeStatus.getNodeThatAcknowledged().toString());
 			}
 
 		}
@@ -584,7 +584,7 @@ public final class NodeActor extends UntypedActor {
 
 			// request is related to a ClientUpdate request
 			else {
-				final WriteRequestStatus writeStatus = writeRequests.get(requestID);
+				final UpdateRequestStatus writeStatus = writeRequests.get(requestID);
 				writeStatus.addVote(message.getValue());
 
 				// check quorum
@@ -595,7 +595,7 @@ public final class NodeActor extends UntypedActor {
 					final VersionedItem updatedRecord = writeStatus.getUpdatedRecord();
 
 					// send write request to interested nodes (nodes responsible for that key)
-					this.writeResponses.put(requestID, new WriteResponseStatus(writeStatus.getKey(), updatedRecord, writeStatus.getSender(), readQuorum, writeQuorum));
+					this.writeResponses.put(requestID, new UpdateResponseStatus(writeStatus.getKey(), updatedRecord, writeStatus.getSender(), readQuorum, writeQuorum));
 					final Set<Integer> responsible = ring.responsibleForKey(writeStatus.getKey());
 					responsible.forEach(node -> ring.getNode(node).tell(new WriteRequest(id, requestCount, writeStatus.getKey(), updatedRecord), getSelf()));
 
@@ -617,13 +617,13 @@ public final class NodeActor extends UntypedActor {
 		// A read or write operation started from this node could have not been concluded before reach the this timeout.
 		// Check if the operation is concluded. If not, send an error msg to client.
 		final ReadRequestStatus readRequestStatus = readRequests.get(message.getRequestID());
-		final WriteRequestStatus writeRequestStatus = writeRequests.get(message.getRequestID());
+		final UpdateRequestStatus updateRequestStatus = writeRequests.get(message.getRequestID());
 
 		// operation is still pending
-		if (!(readRequestStatus == null && writeRequestStatus == null)) {
+		if (!(readRequestStatus == null && updateRequestStatus == null)) {
 			logger.warning("Quorum TIMEOUT reached for request [{}] - cancel operation", message.getRequestID());
 
-			final ActorRef client = (readRequestStatus != null) ? readRequestStatus.getSender() : writeRequestStatus.getSender();
+			final ActorRef client = (readRequestStatus != null) ? readRequestStatus.getSender() : updateRequestStatus.getSender();
 
 			assert client != null;
 			client.tell(new ClientOperationErrorResponse(id, "Timeout for this operation has been reached"), getSelf());

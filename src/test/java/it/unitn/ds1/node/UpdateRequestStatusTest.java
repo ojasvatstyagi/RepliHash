@@ -1,20 +1,20 @@
 package it.unitn.ds1.node;
 
 import akka.actor.ActorRef;
-import it.unitn.ds1.node.status.WriteRequestStatus;
+import it.unitn.ds1.node.status.UpdateRequestStatus;
 import it.unitn.ds1.storage.VersionedItem;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
 
 /**
- * Test for @{@link WriteRequestStatus}.
+ * Test for @{@link UpdateRequestStatus}.
  */
-public final class WriteRequestStatusTest {
+public final class UpdateRequestStatusTest {
 
 	@Test
 	public void checkGets() {
-		final WriteRequestStatus s = new WriteRequestStatus(44, "ciao", ActorRef.noSender(), 1, 1);
+		final UpdateRequestStatus s = new UpdateRequestStatus(44, "ciao", ActorRef.noSender(), 1, 1);
 		s.addVote(new VersionedItem("ciao", 1));
 		assertEquals(44, s.getKey());
 		assertEquals("ciao", s.getUpdatedRecord().getValue());
@@ -23,14 +23,14 @@ public final class WriteRequestStatusTest {
 
 	@Test(expected = IllegalStateException.class)
 	public void noVotes() {
-		final WriteRequestStatus s = new WriteRequestStatus(44, "ciao", ActorRef.noSender(), 2, 2);
+		final UpdateRequestStatus s = new UpdateRequestStatus(44, "ciao", ActorRef.noSender(), 2, 2);
 		assertFalse(s.isQuorumReached());
 		s.getUpdatedRecord();
 	}
 
 	@Test
 	public void quorumNotReached1() {
-		final WriteRequestStatus s = new WriteRequestStatus(44, "ciao", ActorRef.noSender(), 2, 3);
+		final UpdateRequestStatus s = new UpdateRequestStatus(44, "ciao", ActorRef.noSender(), 2, 3);
 		s.addVote(new VersionedItem("ciao", 1));
 		s.addVote(new VersionedItem("ciao", 1));
 		assertFalse(s.isQuorumReached());
@@ -38,7 +38,7 @@ public final class WriteRequestStatusTest {
 
 	@Test
 	public void quorumNotReached2() {
-		final WriteRequestStatus s = new WriteRequestStatus(44, "ciao", ActorRef.noSender(), 3, 2);
+		final UpdateRequestStatus s = new UpdateRequestStatus(44, "ciao", ActorRef.noSender(), 3, 2);
 		s.addVote(new VersionedItem("ciao", 1));
 		s.addVote(new VersionedItem("ciao", 1));
 		assertFalse(s.isQuorumReached());
@@ -46,7 +46,7 @@ public final class WriteRequestStatusTest {
 
 	@Test
 	public void singleVersion() {
-		final WriteRequestStatus s = new WriteRequestStatus(44, "ciao", ActorRef.noSender(), 2, 2);
+		final UpdateRequestStatus s = new UpdateRequestStatus(44, "ciao", ActorRef.noSender(), 2, 2);
 		s.addVote(new VersionedItem("ciao", 1));
 		s.addVote(new VersionedItem("ciao", 1));
 		assertTrue(s.isQuorumReached());
@@ -56,7 +56,7 @@ public final class WriteRequestStatusTest {
 
 	@Test
 	public void multipleVotes() {
-		final WriteRequestStatus s = new WriteRequestStatus(44, "ciao", ActorRef.noSender(), 3, 2);
+		final UpdateRequestStatus s = new UpdateRequestStatus(44, "ciao", ActorRef.noSender(), 3, 2);
 		s.addVote(new VersionedItem("ciao", 2));
 		s.addVote(new VersionedItem("ciao", 1));
 		s.addVote(new VersionedItem("hello", 4));
@@ -67,7 +67,7 @@ public final class WriteRequestStatusTest {
 
 	@Test
 	public void mixedVotes() {
-		final WriteRequestStatus s = new WriteRequestStatus(44, "ciao", ActorRef.noSender(), 3, 2);
+		final UpdateRequestStatus s = new UpdateRequestStatus(44, "ciao", ActorRef.noSender(), 3, 2);
 		s.addVote(null);
 		s.addVote(new VersionedItem("hello", 2));
 		s.addVote(new VersionedItem("ciao", 1));
@@ -77,7 +77,7 @@ public final class WriteRequestStatusTest {
 
 	@Test
 	public void nullVotes() {
-		final WriteRequestStatus s = new WriteRequestStatus(44, "ciao", ActorRef.noSender(), 3, 2);
+		final UpdateRequestStatus s = new UpdateRequestStatus(44, "ciao", ActorRef.noSender(), 3, 2);
 		s.addVote(null);
 		s.addVote(null);
 		s.addVote(null);
