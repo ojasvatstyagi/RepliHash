@@ -13,7 +13,7 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 /**
- * Test storage manger
+ * Test storage manger @{@link FileStorageManager}.
  */
 public final class FileStorageManagerTest {
 
@@ -24,12 +24,13 @@ public final class FileStorageManagerTest {
 
 	@Before
 	public void prepareStorage() throws IOException {
-
-		File file = new File(storageFilePath);
+		final File file = new File(storageFilePath);
 		if (file.exists()) {
-			file.delete();
+			boolean ok = file.delete();
+			assertTrue(ok);
 		}
-		file.createNewFile();
+		boolean ok = file.createNewFile();
+		assertTrue(ok);
 
 		InputStream input = FileStorageManagerTest.class.getResourceAsStream("/it/unitn/ds1/storage/sampleStorage.txt");
 		OutputStream output = new FileOutputStream(storageFilePath);
@@ -46,15 +47,15 @@ public final class FileStorageManagerTest {
 
 	@After
 	public void removeStorage() {
-		File file = new File(storageFilePath);
+		final File file = new File(storageFilePath);
 		if (file.exists()) {
-			file.delete();
+			boolean ok = file.delete();
+			assertTrue(ok);
 		}
 	}
 
 	@Test
 	public void readRecords() throws IOException {
-
 		StorageManager storageManager = new FileStorageManager(storageFileDirectory, NODE_ID);
 
 		Map<Integer, VersionedItem> records = storageManager.readRecords();
@@ -63,7 +64,6 @@ public final class FileStorageManagerTest {
 
 	@Test
 	public void readRecord() throws IOException {
-
 		StorageManager storageManager = new FileStorageManager(storageFileDirectory, NODE_ID);
 
 		VersionedItem record = storageManager.readRecord(17);
@@ -74,7 +74,6 @@ public final class FileStorageManagerTest {
 
 	@Test
 	public void appendNewRecord() throws IOException {
-
 		StorageManager storageManager = new FileStorageManager(storageFileDirectory, NODE_ID);
 		storageManager.appendRecord(20, new VersionedItem("value20", 1));
 
@@ -88,7 +87,6 @@ public final class FileStorageManagerTest {
 
 	@Test
 	public void appendExistentRecord() throws IOException {
-
 		StorageManager storageManager = new FileStorageManager(storageFileDirectory, NODE_ID);
 		storageManager.appendRecord(12, new VersionedItem("newValue", 16));
 

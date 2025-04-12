@@ -6,6 +6,7 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.FileReader;
@@ -22,18 +23,30 @@ import java.util.Map;
 public final class FileStorageManager implements StorageManager {
 
 	// use space as record separator as requested from project guidelines
-	private static CSVFormat CUSTOM_CSV_FORMAT = CSVFormat.DEFAULT.withDelimiter(' ');
+	private static final CSVFormat CUSTOM_CSV_FORMAT = CSVFormat.DEFAULT.withDelimiter(' ');
 
-	private String fileLocation;
 
-	public FileStorageManager(@NotNull String storagePath, int nodeId) throws IOException {
+	// location of the file for this node
+	private final String fileLocation;
 
-		File file = new File(storagePath, "nodeStorage-" + nodeId + ".txt");
-		fileLocation = file.getAbsolutePath();
+	/**
+	 * Create a new file-based storage for the node with the given ID.
+	 * Each node is given a unique file name in order to be able to run
+	 * multiple nodes on the same host without conflicts.
+	 *
+	 * @param directory Directory where to store the file.
+	 * @param nodeID    ID of the node that uses this storage.
+	 * @throws IOException If it is not possible to read or create the file.F
+	 */
+	public FileStorageManager(@NotNull String directory, int nodeID) throws IOException {
 
-		// check if file exists. If no, create a new one.
+		// locate the file where to write
+		final File file = new File(directory, "nodeStorage-" + nodeID + ".txt");
+		this.fileLocation = file.getAbsolutePath();
+
+		// check if file exists... if not, create a new one
 		if (!file.exists()) {
-			boolean created = file.createNewFile();
+			final boolean created = file.createNewFile();
 			if (!created) {
 				throw new RuntimeException("Unable to create new file \"" + fileLocation + "\" for storage purposes.\n" +
 					"Please, check the \"storage-path\" key in Akka configuration file.");
@@ -41,65 +54,60 @@ public final class FileStorageManager implements StorageManager {
 		}
 	}
 
-	private CSVPrinter getFilePrinter() throws IOException {
-		FileWriter fileWriter = new FileWriter(fileLocation);
-		return new CSVPrinter(fileWriter, CUSTOM_CSV_FORMAT);
-	}
-
+	@Nullable
 	@Override
 	public VersionedItem readRecord(int key) {
+		try (FileReader fileReader = new FileReader(fileLocation)) {
 
-		try {
-			FileReader fileReader = new FileReader(fileLocation);
-			Iterable<CSVRecord> records = CUSTOM_CSV_FORMAT.parse(fileReader);
-
+			// get all records
+			final Iterable<CSVRecord> records = CUSTOM_CSV_FORMAT.parse(fileReader);
 			for (CSVRecord record : records) {
-
 				validateRecord(record);
 
-				int fileKey = Integer.parseInt(record.get(0));
+				// return the item, if found
+				final int fileKey = Integer.parseInt(record.get(0));
 				if (fileKey == key) {
-					fileReader.close();
 					return new VersionedItem(record.get(1), Integer.parseInt(record.get(2)));
 				}
 			}
-			fileReader.close();
 
 		} catch (IOException | NumberFormatException e) {
 			throw new ReadException(e);
 		}
 
+		// if here, no key was found
 		return null;
 	}
 
+	@NotNull
 	@Override
 	public Map<Integer, VersionedItem> readRecords() {
 
-		Map<Integer, VersionedItem> result = new HashMap<>();
+		// map to store all items
+		final Map<Integer, VersionedItem> result = new HashMap<>();
 
-		try {
-			FileReader fileReader = new FileReader(fileLocation);
-			Iterable<CSVRecord> records = CUSTOM_CSV_FORMAT.parse(fileReader);
+		try (FileReader fileReader = new FileReader(fileLocation)) {
 
+			// put all records in the map
+			final Iterable<CSVRecord> records = CUSTOM_CSV_FORMAT.parse(fileReader);
 			for (CSVRecord record : records) {
 				validateRecord(record);
 				result.put(Integer.parseInt(record.get(0)), new VersionedItem(record.get(1), Integer.parseInt(record.get(2))));
 			}
 
-			fileReader.close();
 		} catch (IOException | NumberFormatException e) {
 			throw new ReadException(e);
 		}
 
+		// return the map with all values
 		return result;
 	}
 
 	@Override
 	public void appendRecord(int key, @NotNull VersionedItem versionedItem) {
-
 		try {
-			Map<Integer, VersionedItem> fileRecords = readRecords();
-			CSVPrinter csvFilePrinter = getFilePrinter();
+			final Map<Integer, VersionedItem> fileRecords = readRecords();
+			final CSVPrinter csvFilePrinter = getFilePrinter();
 
 			updateRecordMap(fileRecords, key, versionedItem);
 
@@ -117,11 +125,10 @@ public final class FileStorageManager implements StorageManager {
 
 	@Override
 	public void appendRecords(@NotNull Map<Integer, VersionedItem> records) {
-
 		try {
 
-			Map<Integer, VersionedItem> fileRecords = readRecords();
-			CSVPrinter csvFilePrinter = getFilePrinter();
+			final Map<Integer, VersionedItem> fileRecords = readRecords();
+			final CSVPrinter csvFilePrinter = getFilePrinter();
 
 			// update map with new records
 			for (Map.Entry<Integer, VersionedItem> record : records.entrySet()) {
@@ -140,14 +147,14 @@ public final class FileStorageManager implements StorageManager {
 		}
 	}
 
-
 	@Override
 	public void writeRecords(@NotNull Map<Integer, VersionedItem> records) {
 
+		// replace all old records with the new ones
 		try {
-			CSVPrinter csvFilePrinter = getFilePrinter();
+			final CSVPrinter csvFilePrinter = getFilePrinter();
 			for (Map.Entry<Integer, VersionedItem> record : records.entrySet()) {
-				List<String> csvRecord = toCsvRecord(record.getKey(), record.getValue());
+				final List<String> csvRecord = toCsvRecord(record.getKey(), record.getValue());
 				csvFilePrinter.printRecord(csvRecord);
 			}
 			csvFilePrinter.close();
@@ -159,15 +166,15 @@ public final class FileStorageManager implements StorageManager {
 
 	@Override
 	public void removeRecords(@NotNull List<Integer> keys) {
-
 		try {
 
-			Map<Integer, VersionedItem> fileRecords = readRecords();
-			CSVPrinter csvFilePrinter = getFilePrinter();
+			// read current records
+			final Map<Integer, VersionedItem> fileRecords = readRecords();
+
+			final CSVPrinter csvFilePrinter = getFilePrinter();
 
 			for (Map.Entry<Integer, VersionedItem> fileRecord : fileRecords.entrySet()) {
-
-				Integer fileKey = fileRecord.getKey();
+				final Integer fileKey = fileRecord.getKey();
 				if (keys.indexOf(fileKey) == -1) {
 					csvFilePrinter.printRecord(toCsvRecord(fileRecord));
 				}
@@ -180,26 +187,18 @@ public final class FileStorageManager implements StorageManager {
 	}
 
 	@Override
-	public void clearStorage() throws IOException {
-		CSVPrinter csvFilePrinter = getFilePrinter();
-		csvFilePrinter.close();
-	}
-
-	@Override
-	public void createStorage() throws IOException {
-		File file = new File(fileLocation);
-		if (!file.exists()) {
-			boolean created = file.createNewFile();
-			if (!created) {
-				throw new RuntimeException("Unable to create new file \"" + fileLocation + "\" for storage purposes.");
-			}
+	public void clearStorage() throws WriteException {
+		try {
+			final CSVPrinter csvFilePrinter = getFilePrinter();
+			csvFilePrinter.close();
+		} catch (IOException e) {
+			throw new WriteException(e);
 		}
 	}
 
 	@Override
 	public void deleteStorage() {
-
-		File file = new File(fileLocation);
+		final File file = new File(fileLocation);
 		if (file.exists()) {
 			boolean delete = file.delete();
 			if (!delete) {
@@ -208,10 +207,14 @@ public final class FileStorageManager implements StorageManager {
 		}
 	}
 
-
 	/* -----
 	 * Utils
 	 ----- */
+
+	private CSVPrinter getFilePrinter() throws IOException {
+		final FileWriter fileWriter = new FileWriter(fileLocation);
+		return new CSVPrinter(fileWriter, CUSTOM_CSV_FORMAT);
+	}
 
 	/**
 	 * Add a record to record map according to some criteria:
@@ -226,8 +229,7 @@ public final class FileStorageManager implements StorageManager {
 	private void updateRecordMap(Map<Integer, VersionedItem> fileRecords, Integer key, VersionedItem newRecord) {
 
 		if (fileRecords.containsKey(key)) {
-
-			VersionedItem fileRecord = fileRecords.get(key);
+			final VersionedItem fileRecord = fileRecords.get(key);
 
 			// Check if record to append has a greater version than the local record
 			// Otherwise local record will be kept
@@ -255,6 +257,7 @@ public final class FileStorageManager implements StorageManager {
 		return csvRecord;
 	}
 
+	@SuppressWarnings("ResultOfMethodCallIgnored")
 	private void validateRecord(@NotNull CSVRecord record) {
 
 		if (record.size() != 3) {

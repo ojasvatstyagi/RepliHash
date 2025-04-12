@@ -10,29 +10,34 @@ import java.io.Serializable;
  */
 public final class VersionedItem implements Serializable {
 
+	// private variables
 	private final String value;
 	private final int version;
 
-	public VersionedItem(String value, int version) {
+	/**
+	 * Create a new versioned item. This stores the value and the version of the item.
+	 *
+	 * @param value   Value for the item.
+	 * @param version Version of the item.
+	 */
+	public VersionedItem(@Nullable String value, int version) {
 		assert version > 0;
 		this.value = value;
 		this.version = version;
 	}
 
+	/**
+	 * @return Return the value of the item.
+	 */
 	@Nullable
 	public String getValue() {
 		return value;
 	}
 
+	/**
+	 * @return Return the version of the item.
+	 */
 	public int getVersion() {
 		return version;
-	}
-
-	@Override
-	public String toString() {
-		return "VersionedItem{" +
-			"value='" + value + '\'' +
-			", version=" + version +
-			'}';
 	}
 }

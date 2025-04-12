@@ -589,18 +589,24 @@ public final class NodeActor extends UntypedActor {
 
 				// check quorum
 				if (writeStatus.isQuorumReached()) {
-					logger.info("[UPDATE] Quorum reached for write request [{}] - updated record to \"{}\"", requestID, writeStatus.getUpdatedRecord());
 
 					// calculate new version
 					final VersionedItem updatedRecord = writeStatus.getUpdatedRecord();
 
+					// log
+					logger.info("[UPDATE] Quorum reached for write request [{}] - updated record to \"{}\" (version {})",
+						requestID, updatedRecord.getValue(), updatedRecord.getVersion());
+
 					// send write request to interested nodes (nodes responsible for that key)
-					this.writeResponses.put(requestID, new UpdateResponseStatus(writeStatus.getKey(), updatedRecord, writeStatus.getSender(), readQuorum, writeQuorum));
+					this.writeResponses.put(requestID, new UpdateResponseStatus(writeStatus.getKey(), updatedRecord,
+						writeStatus.getSender(), readQuorum, writeQuorum));
 					final Set<Integer> responsible = ring.responsibleForKey(writeStatus.getKey());
-					responsible.forEach(node -> ring.getNode(node).tell(new WriteRequest(id, requestCount, writeStatus.getKey(), updatedRecord), getSelf()));
+					responsible.forEach(node -> ring.getNode(node).tell(new WriteRequest(id, requestCount,
+						writeStatus.getKey(), updatedRecord), getSelf()));
 
 					// cancel the timeout
 					this.requestsTimers.get(requestID).cancel();
+
 					// cleanup memory
 					this.writeRequests.remove(requestID);
 					this.requestsTimers.remove(requestID);
@@ -624,13 +630,14 @@ public final class NodeActor extends UntypedActor {
 			logger.warning("Quorum TIMEOUT reached for request [{}] - cancel operation", message.getRequestID());
 
 			final ActorRef client = (readRequestStatus != null) ? readRequestStatus.getSender() : updateRequestStatus.getSender();
-
 			assert client != null;
+
 			client.tell(new ClientOperationErrorResponse(id, "Timeout for this operation has been reached"), getSelf());
 
 			// remove the operation from "current operations"
 			readRequests.remove(message.getRequestID());
 			writeRequests.remove(message.getRequestID());
+
 			// remove timeout
 			requestsTimers.remove(message.getRequestID());
 		}
@@ -745,7 +752,8 @@ public final class NodeActor extends UntypedActor {
 			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
 		// log
-		logger.debug("Cleaning storage... nodes = {}, old keys = {}, new keys = {}", ring.getNodeIDs(), oldRecords.keySet(), records.keySet());
+		logger.debug("Cleaning storage... nodes = {}, old keys = {}, new keys = {}",
+			ring.getNodeIDs(), oldRecords.keySet(), records.keySet());
 
 		// update storage
 		storageManager.writeRecords(records);

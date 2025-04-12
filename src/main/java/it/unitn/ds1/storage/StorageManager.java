@@ -3,8 +3,8 @@ package it.unitn.ds1.storage;
 import it.unitn.ds1.storage.exceptions.ReadException;
 import it.unitn.ds1.storage.exceptions.WriteException;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -17,9 +17,10 @@ public interface StorageManager {
 	 * Read a single record from storage
 	 *
 	 * @param key key of the record to read
-	 * @return the record or null if it is not found
+	 * @return he record or null if it is not found
 	 * @throws ReadException thrown if any error during reading occur (IOException, bad file format, ...)
 	 */
+	@Nullable
 	VersionedItem readRecord(int key) throws ReadException;
 
 	/**
@@ -28,6 +29,7 @@ public interface StorageManager {
 	 * @return a map <key, record> containing all read records
 	 * @throws ReadException thrown if any error during reading occur (IOException, bad file format, ...)
 	 */
+	@NotNull
 	Map<Integer, VersionedItem> readRecords() throws ReadException;
 
 	/**
@@ -71,19 +73,14 @@ public interface StorageManager {
 	void removeRecords(@NotNull List<Integer> keys) throws WriteException;
 
 	/**
-	 * Remove all records from storage;
+	 * Remove all records from storage.
 	 *
 	 * @throws WriteException thrown if any error during writing occur
 	 */
-	void clearStorage() throws WriteException, IOException;
+	void clearStorage() throws WriteException;
 
 	/**
-	 * Create the storage if not exists;
-	 */
-	void createStorage() throws IOException;
-
-	/**
-	 * Delete the persistent storage;
+	 * Delete the persistent storage.
 	 */
 	void deleteStorage();
 }
