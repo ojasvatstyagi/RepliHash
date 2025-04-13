@@ -15,9 +15,6 @@ import java.util.List;
  */
 public final class UpdateRequestStatus {
 
-	// TODO: add also nodes that were responsible for this
-	// probably not, since I can recompute them???
-
 	// internal variables
 	private final int key;
 	private final String newValue;

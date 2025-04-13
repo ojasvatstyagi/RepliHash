@@ -108,7 +108,6 @@ final class Ring {
 	 */
 	@NotNull
 	Map<Integer, ActorRef> getNodes() {
-		// TODO: immutable
 		return this.nodes;
 	}
 
@@ -119,7 +118,6 @@ final class Ring {
 	 */
 	@NotNull
 	Set<Integer> getNodeIDs() {
-		// TODO: immutable
 		return this.nodes.keySet();
 	}
 

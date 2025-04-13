@@ -11,8 +11,6 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class ReadResponse extends BaseMessage {
 
-	// TODO: request ID will get out of range at some point
-
 	// message fields
 	private final int requestID;
 	private final int key;

@@ -14,9 +14,6 @@ import java.util.Set;
  */
 public final class UpdateResponseStatus {
 
-	// TODO: add also nodes that were responsible for this
-	// probably not...
-
 	// internal variables
 	private final int key;
 	private final VersionedItem newValue;

@@ -64,8 +64,6 @@ public final class SystemJoinAndLeave {
 		final CommandResult write2 = TestUtilities.executeCommand(system, node30, new UpdateCommand(1, "ciao"));
 		assertTrue(write2.isSuccess());
 
-		// TODO: check storage here!
-
 		// make 1 node leave -> key should still be available
 		final CommandResult leave1 = TestUtilities.executeCommand(system, node10, new LeaveCommand());
 		assertTrue(leave1.isSuccess());

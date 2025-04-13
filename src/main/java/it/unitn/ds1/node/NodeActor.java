@@ -360,8 +360,8 @@ public final class NodeActor extends UntypedActor {
 		// eventually, acknowledge the client
 		reply(new ClientLeaveResponse(id));
 
-		// TODO: cancel the storage?
-		// storageManager.deleteStorage();
+		// the node is leaving and has just sent the keys to the other nodes
+		storageManager.deleteStorage();
 
 		// shutdown
 		if (this.terminateSystemOnLeave) {
@@ -419,7 +419,7 @@ public final class NodeActor extends UntypedActor {
 		// extract the key to search
 		final int key = message.getKey();
 
-		// TODO: here I just check the read quorum... if some replicated node is down, then I will fail later...
+		// before a call for a vote, check if I there are enough nodes in the system
 		if (readQuorum > ring.size()) {
 			logger.warning("[READ] A client requests key [{}]... but there are not enough nodes in the system: " +
 				"quorum={}, replication nodes={}, nodes={}", key, readQuorum, replication, ring.size());
@@ -450,8 +450,6 @@ public final class NodeActor extends UntypedActor {
 
 		// extract the key to update
 		final int key = message.getKey();
-
-		// TODO: this should be NOT replication, but READ / WRITE max ???
 
 		// get the nodes responsible for that key
 		if (replication > ring.size()) {
@@ -647,7 +645,7 @@ public final class NodeActor extends UntypedActor {
 		assert this.state == State.JOINING_WAITING_DATA;
 		logger.debug("Node [{}] sends the data it is responsible for: {}", message.getSenderID(), message.getRecords().keySet());
 
-		// TODO: store data --> all data?
+		// add the received keys to the local storage
 		storageManager.appendRecords(message.getRecords());
 		cache.putAll(message.getRecords());
 
