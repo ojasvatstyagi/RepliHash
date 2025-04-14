@@ -186,6 +186,13 @@ public final class FileStorageManager implements StorageManager {
 		}
 	}
 
+	/**
+	 * Clear the storage.
+	 * NB: Instead of clearing the file, it closes the file stream.
+	 * Once the file will be reopened, it will be wiped.
+	 *
+	 * @throws WriteException on file I/O exceptions
+	 */
 	@Override
 	public void clearStorage() throws WriteException {
 		try {
@@ -196,6 +203,9 @@ public final class FileStorageManager implements StorageManager {
 		}
 	}
 
+	/**
+	 * Delete the file in which the keys are contained
+	 */
 	@Override
 	public void deleteStorage() {
 		final File file = new File(fileLocation);
