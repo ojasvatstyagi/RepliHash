@@ -188,8 +188,8 @@ public final class FileStorageManager implements StorageManager {
 
 	/**
 	 * Clear the storage.
-	 * NB: Instead of clearing the file, it closes the file stream.
-	 * Once the file will be reopened, it will be wiped.
+	 * NB: When the getFilePrinter fucntion is called, the storage
+	 * is automatically wiped. Therefore, no actions need to be taken.
 	 *
 	 * @throws WriteException on file I/O exceptions
 	 */
