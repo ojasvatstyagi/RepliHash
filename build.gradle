@@ -19,33 +19,3 @@ dependencies {
 	testCompile group: 'com.github.stefanbirkner', name: 'system-rules', version: '1.16.0'
 	testCompile group: 'com.google.guava', name: 'guava', version: '19.0'
 }
-
-/**
- * Custom Gradle task to run the Client CLI.
- * You can run the application in this way: ./gradlew node -Pmyargs="bootstrap"
- */
-task node(type: JavaExec) {
-	classpath sourceSets.main.runtimeClasspath
-	jvmArgs = ['-ea']
-	main = 'it.unitn.ds1.Node'
-
-	// this way we can pass some parameters to the java app
-	if (project.hasProperty('myargs')) {
-		args(myargs.split(' '))
-	}
-}
-
-/**
- * Custom Gradle task to run the Client CLI.
- * You can run the application in this way: ./gradlew client -Pmyargs="127.0.0.1 111 leave"
- */
-task client(type: JavaExec) {
-	classpath sourceSets.main.runtimeClasspath
-	jvmArgs = ['-ea']
-	main = 'it.unitn.ds1.Client'
-
-	// this way we can pass some parameters to the java app
-	if (project.hasProperty('myargs')) {
-		args(myargs.split(' '))
-	}
-}
