@@ -1,4 +1,7 @@
-apply plugin: 'java'
+plugins {
+	id 'java'
+	id 'com.github.johnrengelman.shadow' version '1.2.4'
+}
 sourceCompatibility = 1.8
 
 repositories {
@@ -18,4 +21,34 @@ dependencies {
 	testCompile group: 'com.typesafe.akka', name: 'akka-testkit_2.11', version: '2.4.16'
 	testCompile group: 'com.github.stefanbirkner', name: 'system-rules', version: '1.16.0'
 	testCompile group: 'com.google.guava', name: 'guava', version: '19.0'
+}
+
+/**
+ * Compile the code and create a fat JAR archive with all the dependencies
+ * needed to run the project. The entry point here is the it.unitn.ds1.Node class.
+ */
+task node(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
+	archiveName = 'node.jar'
+	description = "DS1 project - Node"
+	manifest.attributes 'Main-Class': 'it.unitn.ds1.Node'
+	from(project.convention.getPlugin(JavaPluginConvention).sourceSets.main.output)
+	configurations = [project.configurations.runtime]
+	transform(com.github.jengelman.gradle.plugins.shadow.transformers.AppendingTransformer) {
+		resource = 'reference.conf'
+	}
+}
+
+/**
+ * Compile the code and create a fat JAR archive with all the dependencies
+ * needed to run the project. The entry point here is the it.unitn.ds1.Client class.
+ */
+task client(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar) {
+	archiveName = 'client.jar'
+	description = "DS1 project - Client"
+	manifest.attributes 'Main-Class': 'it.unitn.ds1.Client'
+	from(project.convention.getPlugin(JavaPluginConvention).sourceSets.main.output)
+	configurations = [project.configurations.runtime]
+	transform(com.github.jengelman.gradle.plugins.shadow.transformers.AppendingTransformer) {
+		resource = 'reference.conf'
+	}
 }
