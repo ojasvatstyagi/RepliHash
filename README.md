@@ -87,4 +87,4 @@ so the test suite can take some minutes to run.
 
 ## License
 The source code is licences under the MIT license.
-A copy of the license is available in the [LICENSE.txt](LICENSE.txt) file.
+A copy of the license is available in the [LICENSE](LICENSE) file.
