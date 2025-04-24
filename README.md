@@ -1,5 +1,10 @@
 # Distributed key-value store with data partitioning and replication 
-Course project 2016-17 of Distributed Systems 1 - University of Trento.
+This is the project of Distributed Systems 1, Fall Semester 2016-17, University of Trento.
+
+The aim is to implement a distributes key-value store with automatic data partitioning and replication,
+inspired by [Amazon DynamoDB](https://aws.amazon.com/dynamodb/).
+The full description of the project can be found in the [project text](task/project_text.pdf) and
+[project presentation](task/project_presentation.pdf).
 
 Authors: [Andrea Zorzi](https://github.com/Andr35) & [Davide Pedranz](https://github.com/davidepedranz).
 
@@ -24,7 +29,7 @@ as required by the assignment. Please make sure to adjust them in the
 [SystemConstants](src/main/java/it/unitn/ds1/SystemConstants.java) before compiling the code.
 
 ## Run
-The project has 2 entry points, as described in the [project text](task/project_text.pdf):
+The project has 2 entry points:
 * `Node`
 * `Client`
 
@@ -73,6 +78,13 @@ HOST=127.0.0.1 PORT=30000 NODE_ID=0 java -jar build/libs/client.jar 127.0.0.1 20
 
 # make a query (now the key should be present)
 HOST=127.0.0.1 PORT=30000 NODE_ID=0 java -jar build/libs/client.jar 127.0.0.1 20030 read 34
+```
+
+### Assertions
+The software contains assertions, in order to ensure a correct execution and catch bugs early.
+By default, Java disables all assertions. You can decide to enable them with the `-ea`  option for the JVM:
+```bash
+java -ea -jar build/libs/node.jar [COMMAND]
 ```
 
 ## Test
