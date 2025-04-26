@@ -114,4 +114,8 @@ public final class UpdateRequestStatus {
 		return new VersionedItem(this.newValue, lastVersion);
 	}
 
+	public int getVotesCount() {
+    return this.replies.size() + this.nullVotes;
+	}
+
 }

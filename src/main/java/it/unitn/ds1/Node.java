@@ -4,6 +4,7 @@ import akka.actor.ActorSystem;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import it.unitn.ds1.node.NodeActor;
+import it.unitn.ds1.node.HashUtil;
 import org.apache.commons.validator.routines.InetAddressValidator;
 
 /**
@@ -154,10 +155,21 @@ public final class Node {
 		final ActorSystem system = ActorSystem.create(SystemConstants.SYSTEM_NAME, config);
 
 		// create a NodeActor of type "bootstrap" and add it to the system
-		final int id = config.getInt(CONFIG_NODE_ID);
 		final String storagePath = config.getString(CONFIG_STORAGE_PATH);
-		system.actorOf(NodeActor.bootstrap(id, storagePath, SystemConstants.READ_QUORUM,
-			SystemConstants.WRITE_QUORUM, SystemConstants.REPLICATION, true), SystemConstants.ACTOR_NAME);
+       // We’ll treat this node’s “raw address” as stored in config or default to localhost:0
+       final String rawAddress = config.hasPath("node.address")
+           ? config.getString("node.address")
+           : "127.0.0.1:" + config.getInt("akka.remote.netty.tcp.port");
+       final int hashedId = HashUtil.hash(rawAddress);
+       system.actorOf(NodeActor.bootstrap(
+           hashedId,            // hashed node ID
+           rawAddress,          // the string “ip:port”
+           storagePath,
+           SystemConstants.READ_QUORUM,
+           SystemConstants.WRITE_QUORUM,
+           SystemConstants.REPLICATION,
+           true
+       ), SystemConstants.ACTOR_NAME);
 	}
 
 	/**
@@ -167,43 +179,73 @@ public final class Node {
 	 * @param port Port of a remote Node in the system.
 	 */
 	private static void join(String ip, String port) {
+    // load config
+    final Config config = ConfigFactory.load();
 
-		// load configuration
-		final Config config = ConfigFactory.load();
+	String selfHost = config.getString("akka.remote.netty.tcp.hostname");
+	int    selfPort = config.getInt("akka.remote.netty.tcp.port");
+	String storagePath = config.getString(CONFIG_STORAGE_PATH);
 
-		// initialize Akka
-		final ActorSystem system = ActorSystem.create(SystemConstants.SYSTEM_NAME, config);
+	String rawAddress = selfHost + ":" + selfPort;
+	int    hashedId   = HashUtil.hash(rawAddress);
 
-		// create a NodeActor of type "join" and add it to the system
-		final int id = config.getInt(CONFIG_NODE_ID);
-		final String storagePath = config.getString(CONFIG_STORAGE_PATH);
-		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
-			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
-		system.actorOf(NodeActor.join(id, storagePath, remote, SystemConstants.READ_QUORUM,
-			SystemConstants.WRITE_QUORUM, SystemConstants.REPLICATION, true), SystemConstants.ACTOR_NAME);
-	}
+    // initialize Akka
+    final ActorSystem system = ActorSystem.create(SystemConstants.SYSTEM_NAME, config);
 
-	/**
-	 * Launch a crashed Node to recover and join back the system.
-	 *
-	 * @param ip   IP of a remote Node in the system.
-	 * @param port Port of a remote Node in the system.
-	 */
-	private static void recover(String ip, String port) {
+    // THIS is the corrected line:
+    String remote = String.format(
+		"akka.tcp://%s@%s:%s/user/%s",
+		SystemConstants.SYSTEM_NAME,  // dsproject
+		ip,                           // bootstrap IP (method arg)
+		port,                         // bootstrap port (method arg)
+		SystemConstants.ACTOR_NAME    // node
+	);
 
-		// load configuration
-		final Config config = ConfigFactory.load();
+    // spawn the NodeActor
+    system.actorOf(NodeActor.join(
+        hashedId,
+        rawAddress,
+        storagePath,
+        remote,
+        SystemConstants.READ_QUORUM,
+        SystemConstants.WRITE_QUORUM,
+        SystemConstants.REPLICATION,
+        true
+    ), SystemConstants.ACTOR_NAME);
+}
 
-		// initialize Akka
-		final ActorSystem system = ActorSystem.create(SystemConstants.SYSTEM_NAME, config);
+private static void recover(String ip, String port) {
+    // load configuration
+    final Config config = ConfigFactory.load();
 
-		// create a NodeActor of type "join" and add it to the system
-		final int id = config.getInt(CONFIG_NODE_ID);
-		final String storagePath = config.getString(CONFIG_STORAGE_PATH);
-		final String remote = String.format("akka.tcp://%s@%s:%s/user/%s",
-			SystemConstants.SYSTEM_NAME, ip, port, SystemConstants.ACTOR_NAME);
-		system.actorOf(NodeActor.recover(id, storagePath, remote, SystemConstants.READ_QUORUM,
-			SystemConstants.WRITE_QUORUM, SystemConstants.REPLICATION, true), SystemConstants.ACTOR_NAME);
-	}
+	String selfHost = config.getString("akka.remote.netty.tcp.hostname");
+	int    selfPort = config.getInt("akka.remote.netty.tcp.port");
+	String storagePath = config.getString(CONFIG_STORAGE_PATH);
 
+	String rawAddress = selfHost + ":" + selfPort;
+	int    hashedId   = HashUtil.hash(rawAddress);
+
+    // initialize Akka
+    final ActorSystem system = ActorSystem.create(SystemConstants.SYSTEM_NAME, config);
+
+    // build the Akka remote path of an existing node
+    String remote = String.format(
+		"akka.tcp://%s@%s:%s/user/%s",
+		SystemConstants.SYSTEM_NAME,  // dsproject
+		ip,                           // bootstrap IP (method arg)
+		port,                         // bootstrap port (method arg)
+		SystemConstants.ACTOR_NAME    // node
+	);
+
+	system.actorOf(NodeActor.join(
+		hashedId,      // now unique per node
+		rawAddress,    // e.g. "127.0.0.1:20020"
+		storagePath,
+		remote,
+		SystemConstants.READ_QUORUM,
+		SystemConstants.WRITE_QUORUM,
+		SystemConstants.REPLICATION,
+		true
+	), SystemConstants.ACTOR_NAME);
+}
 }

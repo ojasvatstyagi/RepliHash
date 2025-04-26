@@ -26,16 +26,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import it.unitn.ds1.node.HashUtil;
+
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static it.unitn.ds1.SystemConstants.QUORUM_TIMEOUT_SECONDS;
 
-/**
- * Akka Actor that implements the node's behaviour.
- */
+
 public final class NodeActor extends UntypedActor {
 
 	// Unique identifier for this node
 	private final int id;
+	private final String rawId;
 
 	// Storage Manager that helps read and write records into persistent storage.
 	private final StorageManager storageManager;
@@ -91,15 +94,7 @@ public final class NodeActor extends UntypedActor {
 	// Internal variable used to store the current state of the node.
 	private State state;
 
-	/**
-	 * Create a new node Actor.
-	 *
-	 * @param id             Unique identifier to assign to this node.
-	 * @param startupCommand Initial state of the node. This determines the behaviour of the node when started.
-	 * @param remote         Remote address of another actor to contact to leave the system.
-	 *                       This parameter is not required for the bootstrap node.
-	 */
-	private NodeActor(int id, @NotNull String storagePath, @NotNull StartupCommand startupCommand, @Nullable String remote,
+	private NodeActor(int id, @NotNull String rawId, @NotNull String storagePath, @NotNull StartupCommand startupCommand, @Nullable String remote,
 					  int readQuorum, int writeQuorum, int replication, boolean terminateSystemOnLeave) throws IOException {
 
 		// at start, check that the constants R, W and N are correct
@@ -114,7 +109,13 @@ public final class NodeActor extends UntypedActor {
 
 		// initialize values
 		this.id = id;
+		this.rawId = rawId;
 		this.startupCommand = startupCommand;
+
+		this.logger = Logging.getLogger(this);
+    	this.logger.info("Node starting: ID={} (mode={}) storage='{}'",
+        id, startupCommand, storagePath);
+
 		this.remote = remote;
 		this.terminateSystemOnLeave = terminateSystemOnLeave;
 
@@ -124,6 +125,7 @@ public final class NodeActor extends UntypedActor {
 		// initialize the ring
 		this.ring = new Ring(replication, id);
 		this.ring.addNode(id, getSelf());
+		this.logger.info("Initial ring membership: {}", new TreeSet<>(ring.getNodeIDs()));
 
 		// create empty cache
 		this.cache = new HashMap<>();
@@ -136,119 +138,90 @@ public final class NodeActor extends UntypedActor {
 		this.requestCount = 0;
 
 		// setup logger context
-		this.logger = Logging.getLogger(this);
-		final Map<String, Object> mdc = new HashMap<String, Object>() {{
-			put("actor", "Node [" + id + "]:");
-		}};
-		logger.setMDC(mdc);
-		logger.info("Initialize node with initial state {}", startupCommand);
+        Map<String,Object> mdc = new HashMap<>();
+		mdc.put("actor", "Node[" + rawId + "#" + id + "]");
+        logger.setMDC(mdc);
+		logger.info("Starting node: address='{}'  hashedID={}  storage='{}'  mode={}",
+            rawId, id, storagePath, startupCommand);
 	}
 
-	/**
-	 * Create Props for a node that should bootstrap the system.
-	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
-	 */
-	public static Props bootstrap(final int id, @NotNull final String storagePath,
-								  int readQuorum, int writeQuorum, int replication, boolean terminateSystemOnLeave) {
-		return Props.create(new Creator<NodeActor>() {
-			private static final long serialVersionUID = 1L;
+	public static Props bootstrap(final int hashedId,
+                                  @NotNull final String rawId,
+                                  @NotNull final String storagePath,
+                                  int readQ, int writeQ, int rep,
+                                  boolean terminateOnLeave) {
+        return Props.create(new Creator<NodeActor>() {
+            public NodeActor create() throws Exception {
+                return new NodeActor(
+                    hashedId, rawId, storagePath,
+                    StartupCommand.BOOTSTRAP, null,
+                    readQ, writeQ, rep, terminateOnLeave
+                );
+            }
+        });
+    }
 
-			@Override
-			public NodeActor create() throws Exception {
-				return new NodeActor(id, storagePath, StartupCommand.BOOTSTRAP, null, readQuorum, writeQuorum, replication, terminateSystemOnLeave);
-			}
-		});
-	}
+    public static Props join(final int hashedId,
+                             @NotNull final String rawId,
+                             @NotNull final String storagePath,
+                             @NotNull final String remote,
+                             int readQ, int writeQ, int rep,
+                             boolean terminateOnLeave) {
+        return Props.create(new Creator<NodeActor>() {
+            public NodeActor create() throws Exception {
+                return new NodeActor(
+                    hashedId, rawId, storagePath,
+                    StartupCommand.JOIN, remote,
+                    readQ, writeQ, rep, terminateOnLeave
+                );
+            }
+        });
+    }
 
-	/**
-	 * Create Props for a new node that is willing to join the system.
-	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
-	 */
-	public static Props join(final int id, @NotNull final String storagePath, String remote,
-							 int readQuorum, int writeQuorum, int replication, boolean terminateSystemOnLeave) {
-		return Props.create(new Creator<NodeActor>() {
-			private static final long serialVersionUID = 1L;
+	public static Props recover(final int hashedId,
+                                @NotNull final String rawId,
+                                @NotNull final String storagePath,
+                                @NotNull final String remote,
+                                int readQ, int writeQ, int rep,
+                                boolean terminateOnLeave) {
+        return Props.create(new Creator<NodeActor>() {
+            public NodeActor create() throws Exception {
+                return new NodeActor(
+                    hashedId, rawId, storagePath,
+                    StartupCommand.RECOVER, remote,
+                    readQ, writeQ, rep, terminateOnLeave
+                );
+            }
+        });
+    }
 
-			@Override
-			public NodeActor create() throws Exception {
-				return new NodeActor(id, storagePath, StartupCommand.JOIN, remote, readQuorum, writeQuorum, replication, terminateSystemOnLeave);
-			}
-		});
-	}
+    public void preStart() throws IOException {
+        switch (startupCommand) {
+            case BOOTSTRAP:
+                storageManager.clearStorage();
+                this.state = State.READY;
+                // elevated to INFO
+                logger.info("BOOTSTRAP complete: storage cleared, state={}", state);
+                break;
 
-	/**
-	 * Create Props for a new node that is willing to join back the system after a crash.
-	 * See: http://doc.akka.io/docs/akka/current/java/untyped-actors.html#Recommended_Practices
-	 */
-	public static Props recover(final int id, @NotNull final String storagePath, String remote,
-								int readQuorum, int writeQuorum, int replication, boolean terminateSystemOnLeave) {
-		return Props.create(new Creator<NodeActor>() {
-			private static final long serialVersionUID = 1L;
+            case JOIN:
+                storageManager.clearStorage();
+                getContext().actorSelection(remote)
+                            .tell(new JoinRequestMessage(id), getSelf());
+                this.state = State.JOINING_WAITING_NODES;
+                logger.info("JOIN requested: contacting bootstrap [{}], state={}", remote, state);
+                break;
 
-			@Override
-			public NodeActor create() throws Exception {
-				return new NodeActor(id, storagePath, StartupCommand.RECOVER, remote, readQuorum, writeQuorum, replication, terminateSystemOnLeave);
-			}
-		});
-	}
+            case RECOVER:
+                getContext().actorSelection(remote)
+                            .tell(new JoinRequestMessage(id), getSelf());
+                this.state = State.RECOVERING_WAITING_NODES;
+                logger.info("RECOVER requested: contacting [{}], state={}", remote, state);
+                break;
+        }
+        assert this.state != null;
+    }
 
-	/**
-	 * This method is called after the constructor, when the actor is ready.
-	 * We use this to do the initial actions required by the actor, depending
-	 * on the initial state. For instance, if the node needs to leave the
-	 * system, we send a message to a remote node already in the system.
-	 */
-	@Override
-	public void preStart() throws IOException {
-		switch (startupCommand) {
-
-			// this is the first node - just initialize the storage
-			case BOOTSTRAP: {
-
-				// initialize storage
-				storageManager.clearStorage();
-
-				// ready
-				this.state = State.READY;
-				logger.debug("PreStart(): storage initialized, move to {}", state);
-				break;
-			}
-
-			// asks to the node provided from the command line to join the system
-			case JOIN: {
-
-				// initialize storage
-				storageManager.clearStorage();
-
-				// ask the list of nodes
-				getContext().actorSelection(remote).tell(new JoinRequestMessage(id), getSelf());
-				this.state = State.JOINING_WAITING_NODES;
-				logger.debug("PreStart(): storage initialized, ask to join to [{}], move to {}", remote, state);
-				break;
-			}
-
-			// asks to the node provided from the command line the nodes in the system, needed for the recovery
-			case RECOVER: {
-
-				// ask nodes, in order to complete the recovery
-				getContext().actorSelection(remote).tell(new JoinRequestMessage(id), getSelf());
-				this.state = State.RECOVERING_WAITING_NODES;
-				logger.debug("PreStart(): ask nodes to [{}], move to {}", remote, state);
-				break;
-			}
-		}
-
-		// the method must initialize the state
-		assert this.state != null;
-	}
-
-	/**
-	 * For each type of message, call the relative callback
-	 * to keep this method short and clean.
-	 *
-	 * @param message Incoming message.
-	 */
-	@Override
 	public void onReceive(Object message) {
 		if (message instanceof JoinRequestMessage) {
 			onJoinRequest((JoinRequestMessage) message);
@@ -287,495 +260,547 @@ public final class NodeActor extends UntypedActor {
 		}
 	}
 
-	private void onJoinRequest(@NotNull JoinRequestMessage message) {
-
-		// I already have the nodes
+	private void onJoinRequest(@NotNull JoinRequestMessage msg) {
+		int sender = msg.getSenderID();
 		if (state != State.JOINING_WAITING_NODES && state != State.RECOVERING_WAITING_NODES) {
-			logger.debug("Node [{}] asks to join the network... sending my nodes: {}", message.getSenderID(), ring.getNodeIDs());
+			// Informative INFO-level log
+			logger.info("Received JOIN request from node {}. Current ring members: {}",
+				sender, new TreeSet<>(ring.getNodeIDs()));
 
-			// send back the list of nodes
+			// Reply with the full membership
 			reply(new NodesListMessage(id, ring.getNodes()));
-		}
-
-		// if I am not ready, ignore the message
-		else {
-			logger.warning("Node [{}] asks to join the network, but I am NOT ready to reply ({}); ignore the request",
-				message.getSenderID(), state);
+		} else {
+			logger.warning("JOIN request from node {} ignored (state = {})", sender, state);
 		}
 	}
 
-	private void onDataRequest(@NotNull DataRequestMessage message) {
-
-		// I am ready to reply
+	private void onDataRequest(@NotNull DataRequestMessage msg) {
+		int sender = msg.getSenderID();
 		if (state == State.READY) {
+			Map<Integer, VersionedItem> records = storageManager.readRecords();
+			logger.info("Received DATA request from node {}. Sending {} records: {}",
+				sender, records.size(), records.keySet());
 
-			// extract the data
-			final Map<Integer, VersionedItem> records = storageManager.readRecords();
-			logger.debug("Node [{}] asks my data. Sending keys: {}", message.getSenderID(), records.keySet());
-
-			// send back the data
 			reply(new JoinDataMessage(id, records));
-		}
-
-		// I am waiting for the data, cannot reply
-		else {
-			logger.warning("Node [{}] asks my data, but I am not ready ({}); ignore the request",
-				message.getSenderID(), state);
+		} else {
+			logger.warning("DATA request from node {} ignored (state = {})", sender, state);
 		}
 	}
 
 	private void onLeaveRequest() {
-		logger.warning("[LEAVE] A Client asks me to leave... sending goodbye message");
+		logger.info("Client requested LEAVE. Handing off data and exiting.");
 
-		// Temp variable used to sort record on new replicas
-		// Key; new replica id, Value: Map of record to leave to new replica as legacy
-		final Map<Integer, Map<Integer, VersionedItem>> legacies = new HashMap<>();
-		final Map<Integer, VersionedItem> records = storageManager.readRecords();
+		// Prepare data handoff
+		Map<Integer, Map<Integer, VersionedItem>> handoffs = new HashMap<>();
+		Map<Integer, VersionedItem> allRecords = storageManager.readRecords();
 
-		for (Map.Entry<Integer, VersionedItem> record : records.entrySet()) {
+		// Partition records among next replicas
+		allRecords.forEach((key, value) -> {
+			Set<Integer> successors = ring.nextResponsibleReplicasForLeaving(key);
+			successors.forEach(replicaId ->
+				handoffs
+				.computeIfAbsent(replicaId, id -> new HashMap<>())
+				.put(key, value)
+			);
+		});
 
-			// find the next replicas responsible for current key
-			final Set<Integer> nextReplicaIds = ring.nextResponsibleReplicasForLeaving(record.getKey());
+		// Send handoff data
+		handoffs.forEach((replicaId, recs) -> {
+			logger.info("Sending {} records to successor node {}", recs.size(), replicaId);
+			ring.getNode(replicaId).tell(new LeaveDataMessage(id, recs), getSelf());
+		});
 
-			// add the record to the legacy for the next replicas
-			for (int nextReplicaId : nextReplicaIds) {
-				Map<Integer, VersionedItem> dataLegacy = legacies.get(nextReplicaId);
-				if (dataLegacy == null) {
-					dataLegacy = new HashMap<>();
-				}
-				dataLegacy.put(record.getKey(), record.getValue());
-				legacies.put(nextReplicaId, dataLegacy);
-			}
-		}
-
-		// send legacy to next replicas
-		for (int nodeId : legacies.keySet()) {
-			Map<Integer, VersionedItem> recordsLegacy = legacies.get(nodeId);
-			ring.getNode(nodeId).tell(new LeaveDataMessage(id, recordsLegacy), getSelf());
-		}
-
-		// inform all nodes that I am leaving
+		// Notify remaining nodes of departure
 		multicast(new LeaveMessage(id));
-
-		// eventually, acknowledge the client
 		reply(new ClientLeaveResponse(id));
 
-		// the node is leaving and has just sent the keys to the other nodes
+		// Clean up storage
 		storageManager.deleteStorage();
 
-		// shutdown
-		if (this.terminateSystemOnLeave) {
-			logger.warning("[LEAVE]: shutting down the system...");
+		if (terminateSystemOnLeave) {
+			logger.info("Terminating actor system on leave.");
 			getContext().system().terminate();
 		} else {
-			logger.warning("[LEAVE]: I am NOT shutting down the system...");
+			logger.info("Stopping actor (no system termination).");
 			getContext().stop(getSelf());
 		}
 	}
 
-	private void onNodesList(@NotNull NodesListMessage message) {
-		assert state == State.JOINING_WAITING_NODES || state == State.RECOVERING_WAITING_NODES;
-		logger.debug("Node [{}] sends the list of nodes: {}", message.getSenderID(), message.getNodes().keySet());
+	private void onNodesList(@NotNull NodesListMessage msg) {
+		int sender = msg.getSenderID();
+		Set<Integer> newMembers = msg.getNodes().keySet();
+		logger.info("Received NODES_LIST from {}: {}", sender, newMembers);
 
-		// update my list of nodes
-		this.ring.addNodes(message.getNodes());
+		// Update ring membership
+		ring.addNodes(msg.getNodes());
 
 		switch (state) {
-
-			// I trying to join
-			case JOINING_WAITING_NODES: {
-
-				// ask the next node in the ring data the node is responsible for
-				final ActorRef nextNode = ring.nextNodeInTheRing();
-				nextNode.tell(new DataRequestMessage(id), getSelf());
-				this.state = State.JOINING_WAITING_DATA;
+			case JOINING_WAITING_NODES:
+				// Fetch data from predecessor
+				ActorRef pred = ring.nextNodeInTheRing();
+				logger.info("Requesting join data from predecessor node {}", ring.nextIDInTheRing());
+				pred.tell(new DataRequestMessage(id), getSelf());
+				state = State.JOINING_WAITING_DATA;
+				logger.info("State -> {}", state);
 				break;
-			}
 
-			// I was in the system, but I am recovering after a crash
-			case RECOVERING_WAITING_NODES: {
-				assert cache.isEmpty();
-
-				// clean old keys
-				this.dropOldKeys();
-
-				// I probably got an old reference for myself too... correct it!
+			case RECOVERING_WAITING_NODES:
+				// Clean up old records, rejoin
+				dropOldKeys();
 				ring.addNode(id, getSelf());
-
-				// I need to announce me to the system... because nodes have outdated Akka references
-				// this is not really part of the protocol, it is just an Akka implementation detail
+				logger.info("Re‐joining after crash: re‐announcing to all nodes");
 				multicast(new ReJoinMessage(id));
-
-				// now I am ready
-				this.state = State.READY;
-				logger.info("[RECOVERY] Recovery completed, state = {}, nodes = {}", state, ring.getNodeIDs());
+				state = State.READY;
+				logger.info("Recovery complete. State -> {}. Members = {}", state, new TreeSet<>(ring.getNodeIDs()));
 				break;
-			}
+
+			default:
+				logger.warning("Unexpected NODES_LIST in state {} – ignoring", state);
 		}
 	}
 
-	private void onClientReadRequest(@NotNull ClientReadRequest message) {
-
-		// extract the key to search
+	public void onClientReadRequest(@NotNull ClientReadRequest message) {
 		final int key = message.getKey();
+		final int clusterSize = ring.size();
 
-		// before a call for a vote, check if I there are enough nodes in the system
-		if (readQuorum > ring.size()) {
-			logger.warning("[READ] A client requests key [{}]... but there are not enough nodes in the system: " +
-				"quorum={}, replication nodes={}, nodes={}", key, readQuorum, replication, ring.size());
-
-			// inform client that read is impossible
-			reply(new ClientOperationErrorResponse(id, "Read operation is not possible because there aren't enough nodes in the network"));
-
-		} else {
-
-			// store the read request to be able to process the responses
-			requestCount++;
-			readRequests.put(requestCount, new ReadRequestStatus(key, getSender(), readQuorum));
-
-			// ask the responsible nodes for the key
-			final Set<Integer> responsible = ring.responsibleForKey(key);
-			responsible.forEach(node -> ring.getNode(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
-			logger.info("[READ] A client requests key [{}]... asking nodes {} of {}", key, responsible, ring.getNodeIDs());
-
-			// set a timeout within which reach the quorum
-			final TimeoutMessage timeoutMessage = new TimeoutMessage(id, requestCount);
-			final Cancellable timer = getContext().system().scheduler().scheduleOnce(Duration.create(QUORUM_TIMEOUT_SECONDS,
-				TimeUnit.SECONDS), getSelf(), timeoutMessage, getContext().system().dispatcher(), getSelf());
-			requestsTimers.put(requestCount, timer);
+		// Check quorum viability
+		if (readQuorum > clusterSize) {
+			logger.warning(
+				"Read request for key={} denied: read quorum={} exceeds cluster size={}",
+				key, readQuorum, clusterSize
+			);
+			reply(new ClientOperationErrorResponse(
+				id,
+				"Read failed: not enough nodes available for quorum"
+			));
+			return;
 		}
+
+		// Register the pending read
+		requestCount++;
+		readRequests.put(requestCount, new ReadRequestStatus(key, getSender(), readQuorum));
+
+		// Compute placement
+		final int hashedKey = HashUtil.hash(key);
+		final Set<Integer> responsible = ring.responsibleForKey(key);
+
+		// Debug‐level detail
+		logger.debug(
+			"Key placement: rawKey={} → hashedKey={} → replicas={}",
+			key, hashedKey, responsible
+		);
+
+		// Kick off the read
+		responsible.forEach(nodeId ->
+			ring.getNode(nodeId).tell(new ReadRequest(id, requestCount, key), getSelf())
+		);
+		logger.info(
+			"Read request for key={} forwarded to nodes {} (out of {})",
+			key, responsible, ring.getNodeIDs()
+		);
+
+		// Schedule quorum timeout
+		final TimeoutMessage timeout = new TimeoutMessage(id, requestCount);
+		Cancellable timer = getContext().system().scheduler().scheduleOnce(
+			Duration.create(QUORUM_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+			getSelf(), timeout,
+			getContext().system().dispatcher(), getSelf()
+		);
+		requestsTimers.put(requestCount, timer);
 	}
 
-	private void onClientUpdateRequest(@NotNull ClientUpdateRequest message) {
 
-		// extract the key to update
+	public void onClientUpdateRequest(@NotNull ClientUpdateRequest message) {
 		final int key = message.getKey();
+		final String value = message.getValue();
+		final int clusterSize = ring.size();
 
-		// get the nodes responsible for that key
-		if (replication > ring.size()) {
-			logger.warning("[UPDATE] A client requests to update key [{}]... but there are not enough nodes in the system: " +
-				"(replication={}, nodes={})", key, replication, ring.size());
-
-			// inform client that update is impossible
-			reply(new ClientOperationErrorResponse(id, "Update operation is not possible because there aren't enough nodes in the network"));
-
-		} else {
-
-			// store the update request to be able to process the responses
-			requestCount++;
-			writeRequests.put(requestCount, new UpdateRequestStatus(key, message.getValue(), getSender(), readQuorum, writeQuorum));
-
-			// before update key, ask the responsible nodes for the key
-			final Set<Integer> responsible = ring.responsibleForKey(key);
-			responsible.forEach(node -> ring.getNode(node).tell(new ReadRequest(id, requestCount, key), getSelf()));
-
-			// set a timeout within which reach the quorum
-			final TimeoutMessage timeoutMessage = new TimeoutMessage(id, requestCount);
-			final Cancellable timer = getContext().system().scheduler().scheduleOnce(Duration.create(QUORUM_TIMEOUT_SECONDS, TimeUnit.SECONDS),
-				getSelf(), timeoutMessage, getContext().system().dispatcher(), getSelf());
-			requestsTimers.put(requestCount, timer);
-
-			logger.info("[UPDATE] A client requests to update key [{}]... asking nodes {} of {}", key, responsible, ring.getNodeIDs());
-		}
-	}
-
-	private void onReadRequest(ReadRequest message) {
-
-		// extract the key to search
-		final int key = message.getKey();
-
-		// read the value from the data-store and send it back
-		final VersionedItem item = read(key);
-		reply(new ReadResponse(id, message.getRequestID(), key, item));
-
-		// log
-		final String value = item != null ? "\"" + item.getValue() + "\"" : "NOT FOUND";
-		logger.debug("[READ] Read request from node [{}] for key [{}]: reply value {}",
-			message.getSenderID(), message.getKey(), value);
-	}
-
-	private void onWriteRequest(WriteRequest message) {
-
-		// extract the key to search
-		final int key = message.getKey();
-
-		// write the new record in the data-store
-		write(key, message.getVersionedItem());
-
-		// log
-		logger.info("[UPDATE]: Node [{}] sends update key [{}] -> \"{}\", version {}",
-			message.getSenderID(), key, message.getVersionedItem().getValue(), message.getVersionedItem().getVersion());
-
-		// send write acknowledge to node
-		ring.getNode(message.getSenderID()).tell(new WriteResponse(id, message.getRequestID()), getSelf());
-	}
-
-	private void onWriteResponse(WriteResponse message) {
-
-		// check that the request is still valid
-		final int requestID = message.getRequestID();
-		final boolean valid = writeResponses.containsKey(message.getRequestID());
-
-		if (!valid) {
-			logger.debug("[WRITE] Old write ack for write request [{}] from node [{}]... ignore it", requestID, message.getSenderID());
-		} else {
-
-			logger.debug("[WRITE] Valid ack for write request [{}] from node [{}]", requestID, message.getSenderID());
-			final UpdateResponseStatus writeStatus = writeResponses.get(requestID);
-
-			writeStatus.addAck(message.getSenderID());
-
-			// check if every node has ack
-			if (writeStatus.isAckQuorumReached()) {
-				logger.info("[WRITE] Every node acknowledge for write request [{}] - inform the client", writeStatus.getNodeThatAcknowledged().toString());
-
-				// send successful response to client with updated record
-				writeStatus.getSender().tell(new ClientUpdateResponse(id, writeStatus.getKey(), writeStatus.getVersionedItem()), getSelf());
-
-				//cleanup memory
-				this.writeResponses.remove(requestID);
-
-			} else {
-				logger.debug("[WRITE] Some node acks are still missing. Nodes who acknowledge the write: [{}] - waiting...", writeStatus.getNodeThatAcknowledged().toString());
-			}
-
-		}
-	}
-
-	private void onReadResponse(ReadResponse message) {
-
-		// check that the request is still valid
-		final int requestID = message.getRequestID();
-		final boolean valid = readRequests.containsKey(message.getRequestID()) || writeRequests.containsKey(message.getRequestID());
-
-		// not valid -> ignore the message
-		if (!valid) {
-			logger.debug("[READ] Old vote for read request [{}] from node [{}]... ignore it", requestID, message.getSenderID());
+		// Check replication viability
+		if (replication > clusterSize) {
+			logger.warning(
+				"Update request for key={} denied: replication factor={} exceeds cluster size={}",
+				key, replication, clusterSize
+			);
+			reply(new ClientOperationErrorResponse(
+				id,
+				"Update failed: not enough nodes available for replication"
+			));
+			return;
 		}
 
-		// valid -> add it to the voting
-		else {
-			logger.debug("[READ] Valid vote for read request [{}] from node [{}]", requestID, message.getSenderID());
-			final ReadRequestStatus readStatus = readRequests.get(requestID);
+		// Register the pending update (gather phase)
+		requestCount++;
+		writeRequests.put(
+			requestCount,
+			new UpdateRequestStatus(key, value, getSender(), readQuorum, writeQuorum)
+		);
 
-			// request is related to a ClientRead request
-			if (readStatus != null) {
-				readStatus.addVote(message.getValue());
+		// Compute placement
+		final int hashedKey = HashUtil.hash(key);
+		final Set<Integer> responsible = ring.responsibleForKey(key);
 
-				// check quorum
-				if (readStatus.isQuorumReached()) {
-					final String value = readStatus.getLatestValue() != null ? "\"" + readStatus.getLatestValue() + "\"" : "NOT FOUND";
-					logger.info("[READ] Quorum reached for read request [{}] - result is " + "{}", requestID, value);
-					readStatus.getSender().tell(new ClientReadResponse(id, readStatus.getKey(), readStatus.getLatestValue()), getSelf());
+		// Debug‐level detail
+		logger.debug(
+			"Key placement for update: rawKey={} → hashedKey={} → replicas={}",
+			key, hashedKey, responsible
+		);
 
-					// cancel the quorum timeout
-					this.requestsTimers.get(requestID).cancel();
+		// Start by reading current versions from replicas
+		responsible.forEach(nodeId ->
+			ring.getNode(nodeId).tell(new ReadRequest(id, requestCount, key), getSelf())
+		);
+		logger.info(
+			"Update request for key={} initiated, asking current versions from nodes {}",
+			key, responsible
+		);
 
-					// cleanup memory
-					this.readRequests.remove(requestID);
-					this.requestsTimers.remove(requestID);
-
-				} else {
-					logger.debug("[READ] Quorum NOT reached yet for read request [{}] - waiting...", requestID);
-				}
-			}
-
-			// request is related to a ClientUpdate request
-			else {
-				final UpdateRequestStatus writeStatus = writeRequests.get(requestID);
-				writeStatus.addVote(message.getValue());
-
-				// check quorum
-				if (writeStatus.isQuorumReached()) {
-
-					// calculate new version
-					final VersionedItem updatedRecord = writeStatus.getUpdatedRecord();
-
-					// log
-					logger.info("[UPDATE] Quorum reached for write request [{}] - updated record to \"{}\" (version {})",
-						requestID, updatedRecord.getValue(), updatedRecord.getVersion());
-
-					// send write request to interested nodes (nodes responsible for that key)
-					this.writeResponses.put(requestID, new UpdateResponseStatus(writeStatus.getKey(), updatedRecord,
-						writeStatus.getSender(), readQuorum, writeQuorum));
-					final Set<Integer> responsible = ring.responsibleForKey(writeStatus.getKey());
-					responsible.forEach(node -> ring.getNode(node).tell(new WriteRequest(id, requestCount,
-						writeStatus.getKey(), updatedRecord), getSelf()));
-
-					// cancel the timeout
-					this.requestsTimers.get(requestID).cancel();
-
-					// cleanup memory
-					this.writeRequests.remove(requestID);
-					this.requestsTimers.remove(requestID);
-
-				} else {
-					logger.debug("[UPDATE] Quorum NOT reached yet for write request [{}] - waiting...", requestID);
-				}
-			}
-		}
+		// Schedule quorum timeout
+		final TimeoutMessage timeout = new TimeoutMessage(id, requestCount);
+		Cancellable timer = getContext().system().scheduler().scheduleOnce(
+			Duration.create(QUORUM_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+			getSelf(), timeout,
+			getContext().system().dispatcher(), getSelf()
+		);
+		requestsTimers.put(requestCount, timer);
 	}
 
-	private void onRequestTimeout(@NotNull TimeoutMessage message) {
 
-		// A read or write operation started from this node could have not been concluded before reach the this timeout.
-		// Check if the operation is concluded. If not, send an error msg to client.
-		final ReadRequestStatus readRequestStatus = readRequests.get(message.getRequestID());
-		final UpdateRequestStatus updateRequestStatus = writeRequests.get(message.getRequestID());
+protected void onReadRequest(ReadRequest message) {
+    int requestId = message.getRequestID();
+    int senderId  = message.getSenderID();
+    int key       = message.getKey();
 
-		// operation is still pending
-		if (!(readRequestStatus == null && updateRequestStatus == null)) {
-			logger.warning("Quorum TIMEOUT reached for request [{}] - cancel operation", message.getRequestID());
+    // Log that we received an internal read request
+    logger.info("Received ReadRequest[{}] from node {} for key={}", requestId, senderId, key);
 
-			final ActorRef client = (readRequestStatus != null) ? readRequestStatus.getSender() : updateRequestStatus.getSender();
-			assert client != null;
+    // Perform the lookup
+    VersionedItem item = read(key);
+    String value = (item != null ? item.getValue() : "NOT_FOUND");
 
-			client.tell(new ClientOperationErrorResponse(id, "Timeout for this operation has been reached"), getSelf());
+    // Debug‐level detail
+    logger.debug("Lookup result for key {}: {}", key, value);
 
-			// remove the operation from "current operations"
-			readRequests.remove(message.getRequestID());
-			writeRequests.remove(message.getRequestID());
+    // Reply with the versioned item or null
+    reply(new ReadResponse(id, requestId, key, item));
+}
 
-			// remove timeout
-			requestsTimers.remove(message.getRequestID());
-		}
-	}
+protected void onWriteRequest(WriteRequest message) {
+    int requestId = message.getRequestID();
+    int senderId  = message.getSenderID();
+    int key       = message.getKey();
+    VersionedItem newItem = message.getVersionedItem();
 
-	private void onJoinData(@NotNull JoinDataMessage message) {
-		assert this.state == State.JOINING_WAITING_DATA;
-		logger.debug("Node [{}] sends the data it is responsible for: {}", message.getSenderID(), message.getRecords().keySet());
+    // Log receipt of an internal write request
+    logger.info(
+    String.format(
+        "Received WriteRequest[%s] from node %s: writing key=%s → '%s' (v%s)",
+        requestId, senderId, key, newItem.getValue(), newItem.getVersion()
+    )
+);
 
-		// add the received keys to the local storage
-		storageManager.appendRecords(message.getRecords());
-		cache.putAll(message.getRecords());
+    // Perform the write (write‐through cache + persistent storage)
+    write(key, newItem);
 
-		// announce everybody that I am part of the system
-		multicast(new JoinMessage(id));
+    // Acknowledge back to the coordinator
+    ring.getNode(senderId).tell(new WriteResponse(id, requestId), getSelf());
+    logger.debug("Sent WriteResponse[{}] ack to node {}", requestId, senderId);
+}
 
-		// now I am ready to serve requests
-		this.state = State.READY;
-		logger.info("Sending Join msg... now I am part of the system. My nodes are: {}", ring.getNodeIDs());
-	}
+protected void onWriteResponse(WriteResponse message) {
+    int requestId = message.getRequestID();
+    int senderId  = message.getSenderID();
 
-	private void onJoin(JoinMessage message) {
+    // Grab the pending status, or ignore if stale
+    UpdateResponseStatus status = writeResponses.get(requestId);
+    if (status == null) {
+        logger.debug("Ignoring stale WriteResponse[{}] from node {}", requestId, senderId);
+        return;
+    }
 
-		// add the node to my list
-		ring.addNode(message.getSenderID(), getSender());
-		logger.info("Node [{}] is joining... nodes = {}", message.getSenderID(), ring.getNodeIDs());
+    // Log the acknowledgement
+    logger.info("Received write ack for request {} from node {}", requestId, senderId);
+    status.addAck(senderId);
 
-		// clean keys
-		this.dropOldKeys();
-	}
+    // Check for quorum
+    if (status.isAckQuorumReached()) {
+        Set<Integer> acks = status.getNodeThatAcknowledged();
+        logger.info(
+            "Write quorum reached for request {} with acknowledgements {}. Replying to client.",
+            requestId, acks
+        );
 
-	private void onReJoin(ReJoinMessage message) {
+        // Send final success to the original client
+        status.getSender().tell(
+            new ClientUpdateResponse(id, status.getKey(), status.getVersionedItem()),
+            getSelf()
+        );
 
-		// update the reference for the crashed node
-		// this is needed because Akka gives to the node a different reference if started again after a crash
-		ring.addNode(message.getSenderID(), getSender());
-		logger.warning("Node [{}] is re-joining after a crash... nodes = {}", message.getSenderID(), ring.getNodeIDs());
-	}
+        // Cleanup
+        writeResponses.remove(requestId);
+    } else {
+        Set<Integer> acks = status.getNodeThatAcknowledged();
+        logger.debug(
+            "Waiting for more write acks for request {}. Current acknowledgements: {}",
+            requestId, acks
+        );
+    }
+}
 
-	private void onLeave(LeaveMessage message) {
+protected void onReadResponse(ReadResponse message) {
+    int requestId = message.getRequestID();
+    int senderId  = message.getSenderID();
+    VersionedItem item = message.getValue();
 
-		// remove it from my nodes
-		ring.removeNode(message.getSenderID());
-		logger.info("Node [{}] is leaving... nodes = {}", message.getSenderID(), ring.getNodeIDs());
-	}
+    // Stale or unknown request?
+    boolean isReadPending   = readRequests.containsKey(requestId);
+    boolean isUpdatePending = writeRequests.containsKey(requestId);
+    if (!isReadPending && !isUpdatePending) {
+        logger.debug("Ignoring stale response for request {} from node {}", requestId, senderId);
+        return;
+    }
 
-	private void onLeaveData(LeaveDataMessage message) {
+    // If this was a client‐read operation
+    if (isReadPending) {
+        ReadRequestStatus status = readRequests.get(requestId);
+        status.addVote(item);
 
-		logger.info("Node [{}] has send some data. It will be added to local storage", message.getSenderID());
+        logger.debug(
+            "Received read vote for request {} from node {}: value={}",
+            requestId, senderId,
+            (item != null ? item.getValue() : "NULL")
+        );
 
-		// some node is leaving and it gave to me all its data as legacy
-		storageManager.appendRecords(message.getRecords());
-		cache.putAll(message.getRecords());
-	}
+        if (status.isQuorumReached()) {
+            String latest = status.getLatestValue();
+            logger.info(
+                "Read quorum achieved for request {}: returning '{}'",
+                requestId, (latest != null ? latest : "NOT_FOUND")
+            );
 
-	/**
-	 * Send the given message to all the other nodes.
-	 *
-	 * @param message Message to send in multicast.
-	 */
-	private void multicast(Serializable message) {
-		this.ring.getNodes().entrySet()
-			.stream()
-			.filter(entry -> entry.getKey() != id)
-			.forEach(entry -> entry.getValue().tell(message, getSelf()));
-	}
+            status.getSender().tell(
+                new ClientReadResponse(id, status.getKey(), latest),
+                getSelf()
+            );
 
-	/**
-	 * Reply to the actor that sent the last message.
-	 *
-	 * @param reply Message to sent back.
-	 */
-	private void reply(Serializable reply) {
-		getSender().tell(reply, getSelf());
-	}
+            // Cancel timer and clean up
+            requestsTimers.remove(requestId).cancel();
+            readRequests.remove(requestId);
+        } else {
+            logger.debug(
+                "Read quorum not yet reached for request {}: have {}/{} votes", 
+                requestId,
+                status.getVotesCount(),  // you might expose this in ReadRequestStatus
+                readQuorum
+            );
+        }
+    }
 
-	/**
-	 * Extract the item with the requested key from the data-store.
-	 * We use the in-memory cache for simplicity.
-	 *
-	 * @param key Key of the data item.
-	 */
-	@Nullable
-	private VersionedItem read(int key) {
-		return cache.get(key);
-	}
+    // If this was an update (first‐phase) operation
+    else { // isUpdatePending
+        UpdateRequestStatus status = writeRequests.get(requestId);
+        status.addVote(item);
 
-	/**
-	 * Write a new data item to the storage.
-	 * Also, update the in-memory cache.
-	 *
-	 * @param key  Key of the data item.
-	 * @param item Value and version of the data item.
-	 */
-	private void write(int key, VersionedItem item) {
+        logger.debug(
+            "Received update vote for request {} from node {}: value={}",
+            requestId, senderId,
+            (item != null ? item.getValue() : "NULL")
+        );
 
-		// store in the file
-		storageManager.appendRecord(key, item);
+        if (status.isQuorumReached()) {
+            VersionedItem updated = status.getUpdatedRecord();
+            logger.info(
+                "Update quorum achieved for request {}: new record '{}'(v{})",
+                requestId, updated.getValue(), updated.getVersion()
+            );
 
-		// write-though cache
-		cache.put(key, item);
-	}
+            // Move to second phase: send WriteRequests
+            UpdateResponseStatus respStatus = new UpdateResponseStatus(
+                status.getKey(), updated, status.getSender(),
+                readQuorum, writeQuorum
+            );
+            writeResponses.put(requestId, respStatus);
 
-	private void dropOldKeys() {
+            Set<Integer> replicas = ring.responsibleForKey(status.getKey());
+            replicas.forEach(nodeId -> 
+                ring.getNode(nodeId).tell(
+                    new WriteRequest(id, requestId, status.getKey(), updated),
+                    getSelf()
+                )
+            );
+            logger.info("Sent WriteRequest[{}] for key={} to replicas {}", 
+                requestId, status.getKey(), replicas);
 
-		// load records from storage
-		final Map<Integer, VersionedItem> oldRecords = storageManager.readRecords();
+            // Cancel timer and clean up first phase
+            requestsTimers.remove(requestId).cancel();
+            writeRequests.remove(requestId);
+        } else {
+            logger.debug(
+                "Update quorum not yet reached for request {}: have {}/{} votes", 
+                requestId,
+                status.getVotesCount(),  // expose in UpdateRequestStatus
+                Math.max(readQuorum, writeQuorum)
+            );
+        }
+    }
+}
 
-		// remove unwanted records
-		final Map<Integer, VersionedItem> records = oldRecords.entrySet().stream()
-			.filter(entry -> ring.responsibleForKey(entry.getKey()).contains(id))
-			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+protected void onRequestTimeout(@NotNull TimeoutMessage msg) {
+    int requestId = msg.getRequestID();
 
-		// log
-		logger.debug("Cleaning storage... nodes = {}, old keys = {}, new keys = {}",
-			ring.getNodeIDs(), oldRecords.keySet(), records.keySet());
+    ReadRequestStatus  readStatus   = readRequests.get(requestId);
+    UpdateRequestStatus updateStatus = writeRequests.get(requestId);
 
-		// update storage
-		storageManager.writeRecords(records);
+    // If neither a read nor update is pending, ignore
+    if (readStatus == null && updateStatus == null) {
+        logger.debug("Timeout for request {} ignored: no pending operation", requestId);
+        return;
+    }
 
-		// update cache
-		cache.clear();
-		cache.putAll(records);
-	}
+    // Otherwise, we’ve timed out waiting for quorum
+    logger.warning("Operation timeout: request {} did not reach quorum, cancelling", requestId);
 
-	/**
-	 * Enumeration of possible initial states for a node.
-	 * This is used to execute the proper action in the #preStart() method.
-	 */
+    // Notify the original client
+    ActorRef client = (readStatus != null ? readStatus.getSender() : updateStatus.getSender());
+    client.tell(
+        new ClientOperationErrorResponse(id, "Operation timed out before quorum was reached"),
+        getSelf()
+    );
+
+    // Clean up pending state & cancel timer
+    readRequests.remove(requestId);
+    writeRequests.remove(requestId);
+    Cancellable timer = requestsTimers.remove(requestId);
+    if (timer != null) timer.cancel();
+}
+
+protected void onJoinData(@NotNull JoinDataMessage msg) {
+    // Should only happen during join phase
+    if (state != State.JOINING_WAITING_DATA) {
+        logger.warning("Unexpected JOIN_DATA from {} in state {} – ignoring", msg.getSenderID(), state);
+        return;
+    }
+
+    Map<Integer, VersionedItem> records = msg.getRecords();
+    logger.info(
+        "Received initial data for join: {} keys from node {}",
+        records.size(), msg.getSenderID()
+    );
+
+    // Persist & cache
+    storageManager.appendRecords(records);
+    cache.putAll(records);
+
+    // Announce presence
+    multicast(new JoinMessage(id));
+
+    // Transition to ready
+    state = State.READY;
+    logger.info("Join complete: now READY. Ring members = {}", new TreeSet<>(ring.getNodeIDs()));
+}
+
+protected void onJoin(@NotNull JoinMessage msg) {
+    int joiningId = msg.getSenderID();
+    ring.addNode(joiningId, getSender());
+    logger.info("Node {} joined the ring. Members = {}", joiningId, new TreeSet<>(ring.getNodeIDs()));
+
+    // Remove records no longer our responsibility
+    dropOldKeys();
+    logger.debug("After join, cleaned up local records. Cache now holds keys = {}", cache.keySet());
+}
+
+protected void onReJoin(@NotNull ReJoinMessage msg) {
+    int rejoiningId = msg.getSenderID();
+    ring.addNode(rejoiningId, getSender());
+    logger.info("Node {} re-joined after crash. Members = {}", rejoiningId, new TreeSet<>(ring.getNodeIDs()));
+}
+
+protected void onLeave(@NotNull LeaveMessage msg) {
+    int leavingId = msg.getSenderID();
+    ring.removeNode(leavingId);
+    logger.info("Node {} gracefully left. Members = {}", leavingId, new TreeSet<>(ring.getNodeIDs()));
+}
+
+protected void onLeaveData(@NotNull LeaveDataMessage msg) {
+    int fromId = msg.getSenderID();
+    Map<Integer, VersionedItem> legacy = msg.getRecords();
+    logger.info("Received {} legacy records from departing node {}", legacy.size(), fromId);
+
+    // Merge into storage & cache
+    storageManager.appendRecords(legacy);
+    cache.putAll(legacy);
+    logger.debug("Post-merge cache keys = {}", cache.keySet());
+}
+// Multicast a message to all other nodes in the ring
+private void multicast(Serializable message) {
+    Set<Integer> targets = ring.getNodeIDs().stream()
+        .filter(nodeId -> nodeId != id)
+        .collect(Collectors.toCollection(TreeSet::new));
+
+    logger.info("Multicasting {} to nodes {}", message.getClass().getSimpleName(), targets);
+    targets.forEach(nodeId ->
+        ring.getNode(nodeId).tell(message, getSelf())
+    );
+}
+
+// Send a direct reply to the original sender
+private void reply(Serializable response) {
+    ActorRef client = getSender();
+    logger.debug("Replying {} to {}", response.getClass().getSimpleName(), client);
+    client.tell(response, getSelf());
+}
+
+// In-memory cache lookup (used by both client and internal reads)
+@Nullable
+private VersionedItem read(int key) {
+    VersionedItem item = cache.get(key);
+    logger.debug(
+        "Cache lookup for key={} → {}",
+        key,
+        (item != null ? String.format("value='%s',v=%d", item.getValue(), item.getVersion()) : "NOT_FOUND")
+    );
+    return item;
+}
+// Persistent + write-through cache write
+private void write(int key, VersionedItem item) {
+    logger.info(
+        "Persisting key={} → '{}' (version={})",
+        key, item.getValue(), item.getVersion()
+    );
+    storageManager.appendRecord(key, item);
+    cache.put(key, item);
+}
+
+// Remove keys no longer this node's responsibility (on join/recovery)
+private void dropOldKeys() {
+    Map<Integer, VersionedItem> all = storageManager.readRecords();
+    Set<Integer> keep = all.keySet().stream()
+        .filter(k -> ring.responsibleForKey(k).contains(id))
+        .collect(Collectors.toCollection(TreeSet::new));
+
+    Set<Integer> removed = new TreeSet<>(all.keySet());
+    removed.removeAll(keep);
+
+    logger.info(
+        "Repartitioning storage: keeping {} keys, removing {} keys",
+        keep.size(), removed.size()
+    );
+    logger.debug("Old keys={}, New keys={}", all.keySet(), keep);
+
+    // Persist only the kept keys
+    Map<Integer, VersionedItem> filtered = keep.stream()
+        .collect(Collectors.toMap(k -> k, all::get));
+    storageManager.writeRecords(filtered);
+
+    // Refresh cache
+    cache.clear();
+    cache.putAll(filtered);
+}
+
 	private enum StartupCommand {
 		BOOTSTRAP,
 		JOIN,
 		RECOVER
 	}
-
-	/**
-	 * Enumeration of all possible states the node is in.
-	 * For example, the node is joining the network and is waiting
-	 * for some reply to get operational.
-	 */
 	private enum State {
 		JOINING_WAITING_NODES,
 		JOINING_WAITING_DATA,

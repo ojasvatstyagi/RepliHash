@@ -2,12 +2,14 @@ package it.unitn.ds1.node;
 
 import akka.actor.ActorRef;
 import org.jetbrains.annotations.NotNull;
+import it.unitn.ds1.node.HashUtil;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.LinkedHashSet;
 
 /**
  * Represent the topology of the system.
@@ -39,13 +41,16 @@ final class Ring {
 	}
 
 	@NotNull
-	private static Set<Integer> computeResponsibleForKey(int key, Set<Integer> nodes, int replication) {
-		return nodes.stream().sorted((o1, o2) -> {
-			if (o1 >= key && o2 >= key) return o1 - o2;
-			if (o1 >= key && o2 < key) return -1;
-			if (o1 < key && o2 >= key) return +1;
-			else return o1 - o2;
-		}).limit(replication).collect(Collectors.toSet());
+	private static Set<Integer> computeResponsibleForKey(int hashedKey, Set<Integer> nodes, int replication) {
+		return nodes.stream()
+				.sorted((o1, o2) -> {
+					if (o1 >= hashedKey && o2 >= hashedKey) return o1 - o2;
+					if (o1 >= hashedKey && o2 < hashedKey) return -1;
+					if (o1 < hashedKey && o2 >= hashedKey) return +1;
+					else return o1 - o2;
+				})
+				.limit(replication)
+				.collect(Collectors.toCollection(LinkedHashSet::new)); // preserve order
 	}
 
 	/**
@@ -56,7 +61,8 @@ final class Ring {
 	 */
 	@NotNull
 	Set<Integer> responsibleForKey(int key) {
-		return computeResponsibleForKey(key, this.nodes.keySet(), this.replication);
+		int hashedKey = HashUtil.hash(key); // <-- hash the key before lookup
+		return computeResponsibleForKey(hashedKey, this.nodes.keySet(), this.replication);
 	}
 
 	/**
@@ -67,8 +73,11 @@ final class Ring {
 	 */
 	@NotNull
 	Set<Integer> nextResponsibleReplicasForLeaving(int key) {
-		final Set<Integer> nodesExceptMe = this.nodes.keySet().stream().filter(id -> id != this.myID).collect(Collectors.toSet());
-		return computeResponsibleForKey(key, nodesExceptMe, this.replication);
+		int hashedKey = HashUtil.hash(key); // <-- hash the key before lookup
+		final Set<Integer> nodesExceptMe = this.nodes.keySet().stream()
+				.filter(id -> id != this.myID)
+				.collect(Collectors.toSet());
+		return computeResponsibleForKey(hashedKey, nodesExceptMe, this.replication);
 	}
 
 	/**

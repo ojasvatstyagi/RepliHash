@@ -1,0 +1,28 @@
+03:18:39.659 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34m          Node starting: ID=-430289860 (mode=JOIN) storage='/tmp'[0;39m 
+03:18:39.663 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34m          Initial ring membership: [-430289860][0;39m 
+03:18:39.664 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] Starting node: address='127.0.0.1:20040'  hashedID=-430289860  storage='/tmp'  mode=JOIN[0;39m 
+03:18:39.671 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] JOIN requested: contacting bootstrap [akka.tcp://dsproject@127.0.0.1:20010/user/node], state=JOINING_WAITING_NODES[0;39m 
+03:18:39.887 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] Received NODES_LIST from 745075604: [1583112826, 858348960, 745075604][0;39m 
+03:18:39.895 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] Requesting join data from predecessor node 1583112826[0;39m 
+03:18:39.896 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] State -> JOINING_WAITING_DATA[0;39m 
+03:18:39.924 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] Received initial data for join: 0 keys from node 1583112826[0;39m 
+03:18:39.934 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] Multicasting JoinMessage to nodes [745075604, 858348960, 1583112826][0;39m 
+03:18:39.936 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] Join complete: now READY. Ring members = [-430289860, 745075604, 858348960, 1583112826][0;39m 
+03:19:10.348 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] Received ReadRequest[1] from node 745075604 for key=101[0;39m 
+03:19:10.350 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20040#-430289860] Cache lookup for key=101 → NOT_FOUND[0;39m 
+03:19:10.351 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20040#-430289860] Lookup result for key 101: NOT_FOUND[0;39m 
+03:19:10.352 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20040#-430289860] Replying ReadResponse to Actor[akka.tcp://dsproject@127.0.0.1:20010/user/node#-1521355807][0;39m 
+03:19:10.374 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] Received WriteRequest[1] from node 745075604: writing key=101 → 'HelloDS' (v1)[0;39m 
+03:19:10.376 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] Persisting key=101 → 'HelloDS' (version=1)[0;39m 
+03:19:10.377 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20040#-430289860] Sent WriteResponse[1] ack to node 745075604[0;39m 
+03:19:12.391 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] Received ReadRequest[1] from node 858348960 for key=101[0;39m 
+03:19:12.392 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20040#-430289860] Cache lookup for key=101 → value='HelloDS',v=1[0;39m 
+03:19:12.393 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20040#-430289860] Lookup result for key 101: HelloDS[0;39m 
+03:19:12.399 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20040#-430289860] Replying ReadResponse to Actor[akka.tcp://dsproject@127.0.0.1:20020/user/node#82822847][0;39m 
+03:19:14.368 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] Received ReadRequest[1] from node 1583112826 for key=202[0;39m 
+03:19:14.369 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20040#-430289860] Cache lookup for key=202 → NOT_FOUND[0;39m 
+03:19:14.370 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20040#-430289860] Lookup result for key 202: NOT_FOUND[0;39m 
+03:19:14.372 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20040#-430289860] Replying ReadResponse to Actor[akka.tcp://dsproject@127.0.0.1:20030/user/node#-149851089][0;39m 
+03:19:14.386 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] Received WriteRequest[1] from node 1583112826: writing key=202 → 'OjasRocks' (v1)[0;39m 
+03:19:14.387 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20040#-430289860] Persisting key=202 → 'OjasRocks' (version=1)[0;39m 
+03:19:14.388 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20040#-430289860] Sent WriteResponse[1] ack to node 1583112826[0;39m 

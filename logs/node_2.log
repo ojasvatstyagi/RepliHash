@@ -1,0 +1,36 @@
+03:18:35.695 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34m          Node starting: ID=858348960 (mode=JOIN) storage='/tmp'[0;39m 
+03:18:35.699 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34m          Initial ring membership: [858348960][0;39m 
+03:18:35.700 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Starting node: address='127.0.0.1:20020'  hashedID=858348960  storage='/tmp'  mode=JOIN[0;39m 
+03:18:35.706 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] JOIN requested: contacting bootstrap [akka.tcp://dsproject@127.0.0.1:20010/user/node], state=JOINING_WAITING_NODES[0;39m 
+03:18:36.094 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Received NODES_LIST from 745075604: [745075604][0;39m 
+03:18:36.103 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Requesting join data from predecessor node 745075604[0;39m 
+03:18:36.104 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] State -> JOINING_WAITING_DATA[0;39m 
+03:18:36.121 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Received initial data for join: 0 keys from node 745075604[0;39m 
+03:18:36.131 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Multicasting JoinMessage to nodes [745075604][0;39m 
+03:18:36.133 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Join complete: now READY. Ring members = [745075604, 858348960][0;39m 
+03:18:37.960 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Node 1583112826 joined the ring. Members = [745075604, 858348960, 1583112826][0;39m 
+03:18:37.961 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Repartitioning storage: keeping 0 keys, removing 0 keys[0;39m 
+03:18:37.962 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20020#858348960] Old keys=[], New keys=[][0;39m 
+03:18:37.967 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20020#858348960] After join, cleaned up local records. Cache now holds keys = [][0;39m 
+03:18:39.958 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Node -430289860 joined the ring. Members = [-430289860, 745075604, 858348960, 1583112826][0;39m 
+03:18:39.959 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Repartitioning storage: keeping 0 keys, removing 0 keys[0;39m 
+03:18:39.959 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20020#858348960] Old keys=[], New keys=[][0;39m 
+03:18:39.960 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20020#858348960] After join, cleaned up local records. Cache now holds keys = [][0;39m 
+03:19:12.380 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20020#858348960] Key placement: rawKey=101 → hashedKey=951316472 → replicas=[1583112826, -430289860, 745075604][0;39m 
+03:19:12.385 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Read request for key=101 forwarded to nodes [1583112826, -430289860, 745075604] (out of [1583112826, -430289860, 858348960, 745075604])[0;39m 
+03:19:12.404 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20020#858348960] Received read vote for request 1 from node -430289860: value=HelloDS[0;39m 
+03:19:12.405 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20020#858348960] Read quorum not yet reached for request 1: have 1/2 votes[0;39m 
+03:19:12.405 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20020#858348960] Received read vote for request 1 from node 1583112826: value=HelloDS[0;39m 
+03:19:12.406 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Read quorum achieved for request 1: returning 'HelloDS'[0;39m 
+03:19:12.407 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20020#858348960] Ignoring stale response for request 1 from node 745075604[0;39m 
+03:19:12.780 [31mWARN [0;39m    a.r.ReliableDeliverySupervisor (78) [31m          Association with remote system [akka.tcp://dsproject@127.0.0.1:30000] has failed, address is now gated for [5000] ms. Reason: [Disassociated] [0;39m 
+03:19:14.368 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Received ReadRequest[1] from node 1583112826 for key=202[0;39m 
+03:19:14.369 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20020#858348960] Cache lookup for key=202 → NOT_FOUND[0;39m 
+03:19:14.370 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20020#858348960] Lookup result for key 202: NOT_FOUND[0;39m 
+03:19:14.371 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20020#858348960] Replying ReadResponse to Actor[akka.tcp://dsproject@127.0.0.1:20030/user/node#-149851089][0;39m 
+03:19:14.388 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Received WriteRequest[1] from node 1583112826: writing key=202 → 'OjasRocks' (v1)[0;39m 
+03:19:14.389 [34mINFO [0;39m       it.unitn.ds1.node.NodeActor (83) [34mNode[127.0.0.1:20020#858348960] Persisting key=202 → 'OjasRocks' (version=1)[0;39m 
+03:19:14.391 [39mDEBUG[0;39m       it.unitn.ds1.node.NodeActor (88) [39mNode[127.0.0.1:20020#858348960] Sent WriteResponse[1] ack to node 1583112826[0;39m 
+03:19:15.103 [31mWARN [0;39m    a.r.ReliableDeliverySupervisor (78) [31m          Association with remote system [akka.tcp://dsproject@127.0.0.1:20040] has failed, address is now gated for [5000] ms. Reason: [Disassociated] [0;39m 
+03:54:18.176 [31mWARN [0;39m    a.r.ReliableDeliverySupervisor (78) [31m          Association with remote system [akka.tcp://dsproject@127.0.0.1:20030] has failed, address is now gated for [5000] ms. Reason: [Disassociated] [0;39m 
+03:54:18.821 [31mWARN [0;39m    a.r.ReliableDeliverySupervisor (78) [31m          Association with remote system [akka.tcp://dsproject@127.0.0.1:20010] has failed, address is now gated for [5000] ms. Reason: [Disassociated] [0;39m 

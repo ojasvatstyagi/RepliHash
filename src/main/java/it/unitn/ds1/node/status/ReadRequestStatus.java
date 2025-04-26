@@ -97,4 +97,8 @@ public final class ReadRequestStatus {
 			.getValue();
 	}
 
+	public int getVotesCount() {
+    return this.replies.size() + this.nullVotes;
+	}
+
 }
