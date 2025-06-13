@@ -1,31 +1,43 @@
-# Distributed key-value store with data partitioning and replication 
-This is the project of Distributed Systems 1, Fall Semester 2016-17, University of Trento.
+# RepliHash: A Fault-Tolerant Key-Value Store
 
-The aim is to implement a distributes key-value store with automatic data partitioning and replication,
-inspired by [Amazon DynamoDB](https://aws.amazon.com/dynamodb/).
-The full description of the project can be found in the [project text](task/project_text.pdf) and
-[project presentation](task/project_presentation.pdf).
+This is the official repository for the **RepliHash** project, developed as part of the Distributed Systems course, Fall Semester 2025 at Amrita Vishwa Vidyapeetham, Bengaluru.
 
-Authors: [Andrea Zorzi](https://github.com/Andr35) & [Davide Pedranz](https://github.com/davidepedranz).
+RepliHash is a distributed key-value store inspired by [Amazon DynamoDB](https://aws.amazon.com/dynamodb/), supporting **automatic data partitioning**, **quorum-based replication**, and **fault tolerance** using consistent hashing. The project has been accepted for presentation at **ICSCSP-2025**.
+
+**Author:**  
+[Ojas Tyagi](mailto:ojastyagi753@gmail.com)
+
+## Features
+
+- Consistent hashing-based dynamic partitioning
+- Quorum-based replication model (N, R, W configurable)
+- Failure detection and gossip-based membership management
+- Actor-based concurrency using the Akka framework
+- Fault-tolerant storage with persistent logs
+- CLI-based node and client execution
+- Fully tested using JUnit
 
 ## Dependencies
-The software is written in Java and uses the [Akka](http://akka.io/) framework.
-We use [Gradle](https://gradle.org/) to build, test and run the project.
-To build and run the project, you need only a working Java 8 JDK installed on the systems.
-For the first build, the needed dependecies are downloaded from the Internet, so make 
-sure to have a working Internet connection.
 
-## Build
-Run the following command from the project root:
+- Java 8+
+- [Akka](https://akka.io/)
+- [Gradle](https://gradle.org/)
+- Internet connection (for first-time dependency download)
+
+## Build Instructions
+
+Use the following commands from the project root:
+
 ```bash
 ./gradlew node
 ./gradlew client
 ```
-This command will generate 2 JAR archives `build/libs/node.jar` and `build/libs/client.jar`
-with all the dependencies needed to run the project.
+This will generate two executable JAR files in build/libs/:
 
-Some parameters about the quorums, replication and timeouts are defined at compilation time,
-as required by the assignment. Please make sure to adjust them in the
+node.jar: To start a node in the distributed system
+client.jar: To interact with the system (read/write/leave)
+
+⚠️ Make sure to configure parameters like N, R, W, and timeouts in 
 [SystemConstants](src/main/java/it/unitn/ds1/SystemConstants.java) before compiling the code.
 
 ## Run
@@ -35,13 +47,13 @@ The project has 2 entry points:
 
 The former is used to run a Node of the distributed database, the latter is used to query it.
 You need to provide the following environment variables:
- 
-Variable     | Scope                                                         | Notes
--------------|---------------------------------------------------------------|------------------
-HOST         | The hostname of the machine where Node or Client is executed. |
-PORT         | The port of the Node or the Client.                           |
-NODE_ID      | A unique ID for the new node that will join the system.       | `Node` only.
-STORAGE_PATH | The path where storage file for a Node will be saved.         | `Node` only. Optional, default `/tmp`.
+
+| Variable       | Description                           | Scope                       |
+| -------------- | ------------------------------------- | --------------------------- |
+| `HOST`         | IP address or hostname of the machine | Node/Client                 |
+| `PORT`         | Port to bind the process              | Node/Client                 |
+| `NODE_ID`      | Unique identifier for the node        | Node only                   |
+| `STORAGE_PATH` | Directory for persisting data         | Node only (default: `/tmp`) |
 
 To run the `Node`, run
 ```bash
@@ -58,26 +70,26 @@ The following example shows how to run the some nodes and make some queries.
 Please note that some operating system or shell could use a slightly different syntax for environment variables.
 
 ```bash
-# bootstrap the system
+# Bootstrap the system with the first node
 HOST=127.0.0.1 PORT=20010 NODE_ID=10 java -jar build/libs/node.jar bootstrap
 
-# add a new node
+# Join a new node to the cluster
 HOST=127.0.0.1 PORT=20020 NODE_ID=20 java -jar build/libs/node.jar join 127.0.0.1 20010
 
-# add another node
+# Add another node
 HOST=127.0.0.1 PORT=20030 NODE_ID=30 java -jar build/libs/node.jar join 127.0.0.1 20010
 
-# make a query (for a missing key)
+# Query for a missing key
 HOST=127.0.0.1 PORT=30000 NODE_ID=0 java -jar build/libs/client.jar 127.0.0.1 20010 read 34
 
-# make a query (write a key)
+# Write a key-value pair
 HOST=127.0.0.1 PORT=30000 NODE_ID=0 java -jar build/libs/client.jar 127.0.0.1 20020 write 34 hello
 
-# make a node leave
-HOST=127.0.0.1 PORT=30000 NODE_ID=0 java -jar build/libs/client.jar 127.0.0.1 20020 leave
-
-# make a query (now the key should be present)
+# Read the written key from another node
 HOST=127.0.0.1 PORT=30000 NODE_ID=0 java -jar build/libs/client.jar 127.0.0.1 20030 read 34
+
+# Make a node leave
+HOST=127.0.0.1 PORT=30000 NODE_ID=0 java -jar build/libs/client.jar 127.0.0.1 20020 leave
 ```
 
 ### Assertions
@@ -93,10 +105,11 @@ You can run the test from the command line using Gradle:
 ```bash
 ./gradlew check
 ```
-The command compiles the project and run all test cases. The result is shown in the standard output.
-Please note that many test cases will spawn many times multiple Akka actors on your machine,
-so the test suite can take some minutes to run.
+## Acknowledgement
+This project draws inspiration from Amazon Dynamo and is developed under the course guidance of the Distributed Systems faculty.
+
+📢 The project has been accepted for presentation at ICSCSP-2025 and showcases research in fault-tolerant, scalable distributed storage systems.
 
 ## License
-The source code is licences under the MIT license.
+This project is licensed under the MIT License.
 A copy of the license is available in the [LICENSE](LICENSE) file.
